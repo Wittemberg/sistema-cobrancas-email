@@ -14,8 +14,10 @@ server <- function(input, output, session) {
     }
   })
   
-  observeEvent(input$login_entrar, {
-    if (validar_login(input$login_usuario, input$login_senha)) {
+  observeEvent(input$login_payload, {
+    payload <- input$login_payload
+    
+    if (validar_login(payload$usuario, payload$senha)) {
       autenticado(TRUE)
     } else {
       login_msg("Usuário ou senha inválidos.")

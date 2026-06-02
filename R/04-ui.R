@@ -682,14 +682,32 @@ ui_login <- fluidPage(
     ")),
     
     tags$script(HTML("
-  $(document).on('keydown', '#login_senha', function(e) {
+  function enviarLogin() {
+    if (!window.Shiny) {
+      return;
+    }
+
+    Shiny.setInputValue(
+      'login_payload',
+      {
+        usuario: $('#login_usuario').val(),
+        senha: $('#login_senha').val(),
+        nonce: Date.now()
+      },
+      { priority: 'event' }
+    );
+  }
+
+  $(document).on('keydown', '#login_usuario, #login_senha', function(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
-
-      setTimeout(function() {
-        $('#login_entrar').click();
-      }, 150);
+      enviarLogin();
     }
+  });
+
+  $(document).on('click', '#login_entrar', function(e) {
+    e.preventDefault();
+    enviarLogin();
   });
 "))  ),
   
