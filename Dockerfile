@@ -21,6 +21,8 @@ RUN R -e "install.packages(c('shinythemes','DT','readr','dplyr','stringr','strin
 
 WORKDIR /srv/shiny-server
 
+RUN rm -rf /srv/shiny-server/*
+
 COPY app.R ./app.R
 COPY R ./R
 COPY contexto.md ./contexto.md

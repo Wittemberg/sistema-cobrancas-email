@@ -19,15 +19,16 @@ listar_empresas <- function() {
     recurse = FALSE
   )
   
-  basename(dirs) |>
-    discard(
-      ~ .x %in% c(
-        "R",
-        "_config",
-        "logs",
-        "backups"
-      )
-    )
+  dirs_validos <- keep(
+    dirs,
+    ~ dir_exists(file.path(.x, "modelos")) ||
+      file_exists(file.path(.x, "destinatarios.csv"))
+  )
+  
+  dirs_validos |>
+    basename() |>
+    discard(~ str_detect(.x, "^[0-9]+_")) |>
+    sort()
 }
 
 buscar_competencias <- function(empresa) {
