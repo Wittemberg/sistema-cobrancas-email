@@ -18,7 +18,7 @@ RUN apt-get update \
 
 RUN R -e "install.packages(c('shiny','shinythemes','DT','readr','dplyr','stringr','stringdist','stringi','purrr','glue','htmltools','fs','blastula','httr2','jsonlite','tibble'), repos='https://cloud.r-project.org')"
 
-WORKDIR /srv/app
+WORKDIR /srv/shiny-server
 
 COPY app.R ./app.R
 COPY R ./R
@@ -29,8 +29,8 @@ COPY wr-tecnologia ./wr-tecnologia
 COPY _config ./_config
 
 RUN mkdir -p logs backups \
-    && chmod -R 0775 /srv/app
+    && chmod -R 0775 /srv/shiny-server
 
 EXPOSE 3838
 
-CMD ["R", "-e", "shiny::runApp('/srv/app', host = '0.0.0.0', port = 3838)"]
+CMD ["R", "-e", "shiny::runApp('/srv/shiny-server', host = '0.0.0.0', port = 3838)"]

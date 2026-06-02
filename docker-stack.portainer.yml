@@ -1,4 +1,4 @@
-version: "3.7"
+version: "3.8"
 
 services:
   cobrancas-email:
@@ -10,12 +10,12 @@ services:
       APP_ADMIN_USER: ${APP_ADMIN_USER:-admin}
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?Defina APP_ADMIN_PASSWORD antes do primeiro deploy}
     volumes:
-      - cobrancas_config:/srv/app/_config
-      - cobrancas_logs:/srv/app/logs
-      - cobrancas_backups:/srv/app/backups
-      - cobrancas_awe:/srv/app/awe
-      - cobrancas_tecnoteam:/srv/app/tecnoteam
-      - cobrancas_wr_tecnologia:/srv/app/wr-tecnologia
+      - /root/sistema-cobrancas-email/config:/srv/shiny-server/_config
+      - /root/sistema-cobrancas-email/logs:/srv/shiny-server/logs
+      - /root/sistema-cobrancas-email/backups:/srv/shiny-server/backups
+      - /root/sistema-cobrancas-email/awe:/srv/shiny-server/awe
+      - /root/sistema-cobrancas-email/tecnoteam:/srv/shiny-server/tecnoteam
+      - /root/sistema-cobrancas-email/wr-tecnologia:/srv/shiny-server/wr-tecnologia
     deploy:
       replicas: 1
       update_config:
@@ -23,6 +23,8 @@ services:
         failure_action: rollback
       rollback_config:
         order: stop-first
+      restart_policy:
+        condition: any
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=interna"
@@ -31,14 +33,6 @@ services:
         - "traefik.http.routers.cobrancas-email.tls=true"
         - "traefik.http.routers.cobrancas-email.tls.certresolver=letsencryptresolver"
         - "traefik.http.services.cobrancas-email.loadbalancer.server.port=3838"
-
-volumes:
-  cobrancas_config:
-  cobrancas_logs:
-  cobrancas_backups:
-  cobrancas_awe:
-  cobrancas_tecnoteam:
-  cobrancas_wr_tecnologia:
 
 networks:
   interna:
