@@ -28,7 +28,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=interna"
-        - "traefik.http.routers.cobrancas-email.rule=Host(`cobranca.wrtec.com.br`)"
+        - "traefik.http.routers.cobrancas-email.rule=Host(`cobrancas.wrtec.com.br`)"
         - "traefik.http.routers.cobrancas-email.entrypoints=websecure"
         - "traefik.http.routers.cobrancas-email.tls=true"
         - "traefik.http.routers.cobrancas-email.tls.certresolver=letsencryptresolver"

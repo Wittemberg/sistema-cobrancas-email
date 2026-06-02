@@ -9,7 +9,7 @@ A stack foi preparada para o Traefik informado:
 - rede externa: `interna`
 - entrypoint HTTPS: `websecure`
 - certresolver: `letsencryptresolver`
-- dominio: `cobranca.wrtec.com.br`
+- dominio: `cobrancas.wrtec.com.br`
 - porta interna da aplicacao: `3838`
 
 ## Pastas persistentes
