@@ -1,4 +1,4 @@
-FROM rocker/r-ver:4.4.3
+FROM rocker/shiny:4.4.3
 
 ENV RENV_CONFIG_REPOS_OVERRIDE=https://cloud.r-project.org \
     TZ=America/Sao_Paulo
@@ -16,7 +16,8 @@ RUN apt-get update \
         zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN R -e "install.packages(c('shiny','shinythemes','DT','readr','dplyr','stringr','stringdist','stringi','purrr','glue','htmltools','fs','blastula','httr2','jsonlite','tibble'), repos='https://cloud.r-project.org')"
+RUN R -e "install.packages(c('shinythemes','DT','readr','dplyr','stringr','stringdist','stringi','purrr','glue','htmltools','fs','blastula','httr2','jsonlite','tibble'), repos='https://cloud.r-project.org')" \
+    && R -e "pkgs <- c('shiny','shinythemes','DT','readr','dplyr','stringr','stringdist','stringi','purrr','glue','htmltools','fs','blastula','httr2','jsonlite','tibble'); stopifnot(all(vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)))"
 
 WORKDIR /srv/shiny-server
 
