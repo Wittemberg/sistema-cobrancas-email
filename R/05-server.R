@@ -622,6 +622,15 @@ server <- function(input, output, session) {
     )
   })
   
+  output$ui_rem_empresa_id <- renderUI({
+    selectInput(
+      "rem_empresa_id",
+      "ID da Empresa",
+      choices = listar_empresas(),
+      selected = character(0)
+    )
+  })
+  
   carregar_remetentes_dados <- function() {
     caminho <- file.path(pasta_raiz, "_config", "remetentes.csv")
     
@@ -683,7 +692,7 @@ server <- function(input, output, session) {
     
     session$userData$remetente_modo_novo <- FALSE
     
-    updateTextInput(session, "rem_empresa_id", value = remetente$empresa_id)
+    updateSelectInput(session, "rem_empresa_id", selected = remetente$empresa_id)
     updateTextInput(session, "rem_empresa_nome", value = remetente$empresa_nome)
     updateTextInput(session, "rem_email", value = remetente$email_remetente)
     updateTextInput(session, "rem_nome", value = remetente$nome_remetente)
@@ -697,7 +706,13 @@ server <- function(input, output, session) {
     session$userData$remetente_modo_novo <- TRUE
     opcoes_smtp <- unname(carregar_smtp_opcoes())
     
-    updateTextInput(session, "rem_empresa_id", value = "")
+    empresas <- listar_empresas()
+    
+    updateSelectInput(
+      session,
+      "rem_empresa_id",
+      selected = if (length(empresas) > 0) empresas[1] else character(0)
+    )
     updateTextInput(session, "rem_empresa_nome", value = "")
     updateTextInput(session, "rem_email", value = "")
     updateTextInput(session, "rem_nome", value = "")
@@ -712,6 +727,11 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$salvar_remetente, {
+    if (is.null(input$rem_empresa_id) || input$rem_empresa_id == "") {
+      remetentes_msg("Selecione uma empresa antes de salvar o remetente.")
+      return()
+    }
+    
     if (is.null(input$rem_smtp_id) || input$rem_smtp_id == "") {
       remetentes_msg("Cadastre um SMTP antes de salvar o remetente.")
       return()
@@ -1060,6 +1080,15 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     atualizar_contador(cw_refresh)
   }
   
+  output$ui_cw_empresa_id <- renderUI({
+    selectInput(
+      "cw_empresa_id",
+      "Empresa ID",
+      choices = listar_empresas(),
+      selected = character(0)
+    )
+  })
+  
   caminho_chatwoot <- function() {
     file.path(pasta_raiz, "_config", "chatwoot.csv")
   }
@@ -1136,7 +1165,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     item <- dados[linha, ]
     
     updateTextInput(session, "cw_id", value = item$chatwoot_id)
-    updateTextInput(session, "cw_empresa_id", value = item$empresa_id)
+    updateSelectInput(session, "cw_empresa_id", selected = item$empresa_id)
     updateTextInput(session, "cw_base_url", value = item$base_url)
     updateTextInput(session, "cw_account_id", value = item$account_id)
     updateTextInput(session, "cw_inbox_identifier", value = item$inbox_identifier)
@@ -1151,7 +1180,13 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     cw_modo_novo(TRUE)
     
     updateTextInput(session, "cw_id", value = "")
-    updateTextInput(session, "cw_empresa_id", value = "")
+    empresas <- listar_empresas()
+    
+    updateSelectInput(
+      session,
+      "cw_empresa_id",
+      selected = if (length(empresas) > 0) empresas[1] else character(0)
+    )
     updateTextInput(session, "cw_base_url", value = "")
     updateTextInput(session, "cw_account_id", value = "")
     updateTextInput(session, "cw_inbox_identifier", value = "")
@@ -1163,6 +1198,11 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
   })
   
   observeEvent(input$cw_salvar, {
+    if (is.null(input$cw_empresa_id) || input$cw_empresa_id == "") {
+      cw_msg("Selecione uma empresa antes de salvar a configuraÃ§Ã£o Chatwoot.")
+      return()
+    }
+    
     dados <- carregar_chatwoot()
     
     novo_registro <- tibble::tibble(

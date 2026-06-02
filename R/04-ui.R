@@ -410,7 +410,7 @@ ui_app <- fluidPage(
             
             hr(),
             
-            textInput("rem_empresa_id", "ID da Empresa"),
+            uiOutput("ui_rem_empresa_id"),
             textInput("rem_empresa_nome", "Nome da Empresa"),
             textInput("rem_email", "Email Remetente"),
             textInput("rem_nome", "Nome Remetente"),
@@ -530,7 +530,7 @@ ui_app <- fluidPage(
             h3("Configuração Chatwoot"),
             
             textInput("cw_id", "Chatwoot ID"),
-            textInput("cw_empresa_id", "Empresa ID"),
+            uiOutput("ui_cw_empresa_id"),
             textInput("cw_base_url", "URL Base"),
             textInput("cw_account_id", "Account ID"),
             textInput("cw_inbox_identifier", "Inbox Identifier"),
