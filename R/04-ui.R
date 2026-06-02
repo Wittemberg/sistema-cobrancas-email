@@ -318,6 +318,77 @@ ui_app <- fluidPage(
     ),
     
     tabPanel(
+      "PDFs",
+      
+      div(
+        class = "tela-padrao",
+        
+        div(
+          class = "coluna-edicao",
+          div(
+            class = "painel-formulario",
+            
+            h3("Nova Competência"),
+            
+            selectInput("pdf_empresa", "Empresa", choices = listar_empresas()),
+            
+            textInput(
+              "pdf_competencia",
+              "Competência dos PDFs",
+              value = format(Sys.Date(), "%Y-%m"),
+              placeholder = "2026-06"
+            ),
+            
+            uiOutput("ui_pdf_cliente"),
+            
+            fileInput(
+              "pdf_arquivos",
+              "Enviar PDFs para o cliente",
+              accept = ".pdf",
+              multiple = TRUE
+            ),
+            
+            actionButton(
+              "salvar_pdfs_cliente",
+              "Salvar PDFs",
+              class = "btn-primary"
+            ),
+            
+            hr(),
+            
+            fileInput(
+              "pdf_zip",
+              "Importar ZIP por pastas",
+              accept = ".zip"
+            ),
+            
+            helpText("Formato do ZIP: Nome do Cliente/arquivo.pdf"),
+            
+            actionButton(
+              "importar_zip_pdfs",
+              "Importar ZIP"
+            ),
+            
+            br(), br(),
+            
+            verbatimTextOutput("pdf_msg")
+          )
+        ),
+        
+        div(
+          class = "coluna-conteudo",
+          div(
+            class = "painel-conteudo",
+            
+            h3("PDFs da Competência"),
+            
+            DTOutput("pdf_tabela")
+          )
+        )
+      )
+    ),
+    
+    tabPanel(
       "Modelos",
       
       div(

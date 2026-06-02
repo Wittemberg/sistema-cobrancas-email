@@ -390,6 +390,270 @@ server <- function(input, output, session) {
   })
   
   # =========================================================
+  # PDFS
+  # =========================================================
+  
+  pdf_msg <- reactiveVal("Aguardando envio.")
+  pdf_refresh <- reactiveVal(0)
+  
+  atualizar_pdfs <- function() {
+    atualizar_contador(pdf_refresh)
+    atualizar_disparo()
+    atualizar_fila()
+  }
+  
+  limpar_segmento_caminho <- function(texto) {
+    texto <- trimws(as.character(texto))
+    texto <- gsub("[/\\\\:*?\"<>|]", " ", texto)
+    str_squish(texto)
+  }
+  
+  validar_competencia_pdf <- function(competencia) {
+    competencia <- trimws(as.character(competencia))
+    
+    if (!grepl("^\\d{4}-\\d{2}$", competencia)) {
+      stop("Informe a competência no formato AAAA-MM. Exemplo: 2026-06.")
+    }
+    
+    competencia
+  }
+  
+  caminho_competencia_pdf <- function(empresa, competencia) {
+    file.path(
+      pasta_raiz,
+      empresa,
+      "clientes",
+      validar_competencia_pdf(competencia)
+    )
+  }
+  
+  caminho_cliente_pdf <- function(empresa, competencia, cliente_nome) {
+    file.path(
+      caminho_competencia_pdf(empresa, competencia),
+      limpar_segmento_caminho(cliente_nome)
+    )
+  }
+  
+  output$ui_pdf_cliente <- renderUI({
+    req(input$pdf_empresa)
+    
+    clientes <- ler_clientes_empresa(input$pdf_empresa)
+    escolhas <- sort(as.character(clientes$cliente_nome))
+    escolhas <- escolhas[!is.na(escolhas) & escolhas != ""]
+    
+    selectInput(
+      "pdf_cliente",
+      "Cliente",
+      choices = escolhas,
+      selected = if (length(escolhas) > 0) escolhas[1] else character(0)
+    )
+  })
+  
+  pdf_resumo <- reactive({
+    pdf_refresh()
+    req(input$pdf_empresa)
+    
+    competencia <- trimws(as.character(input$pdf_competencia))
+    
+    if (!grepl("^\\d{4}-\\d{2}$", competencia)) {
+      return(
+        tibble::tibble(
+          Cliente = character(),
+          PDFs = integer(),
+          Pasta = character()
+        )
+      )
+    }
+    
+    pasta_competencia <- caminho_competencia_pdf(input$pdf_empresa, competencia)
+    
+    if (!dir_exists(pasta_competencia)) {
+      return(
+        tibble::tibble(
+          Cliente = character(),
+          PDFs = integer(),
+          Pasta = character()
+        )
+      )
+    }
+    
+    pastas <- dir_ls(
+      pasta_competencia,
+      type = "directory",
+      recurse = FALSE
+    )
+    
+    if (length(pastas) == 0) {
+      return(
+        tibble::tibble(
+          Cliente = character(),
+          PDFs = integer(),
+          Pasta = character()
+        )
+      )
+    }
+    
+    tibble::tibble(
+      Cliente = basename(pastas),
+      PDFs = purrr::map_int(
+        pastas,
+        ~ length(dir_ls(.x, regexp = "\\.pdf$", recurse = FALSE))
+      ),
+      Pasta = as.character(pastas)
+    ) |>
+      dplyr::arrange(.data$Cliente)
+  })
+  
+  output$pdf_tabela <- DT::renderDT({
+    datatable_padrao(
+      pdf_resumo(),
+      page_length = 15
+    )
+  })
+  
+  observeEvent(input$pdf_competencia, {
+    atualizar_contador(pdf_refresh)
+  })
+  
+  observeEvent(input$pdf_empresa, {
+    atualizar_contador(pdf_refresh)
+  })
+  
+  observeEvent(input$salvar_pdfs_cliente, {
+    req(input$pdf_empresa)
+    req(input$pdf_cliente)
+    req(input$pdf_arquivos)
+    
+    tryCatch({
+      destino <- caminho_cliente_pdf(
+        input$pdf_empresa,
+        input$pdf_competencia,
+        input$pdf_cliente
+      )
+      
+      dir_create(destino, recurse = TRUE)
+      
+      arquivos <- input$pdf_arquivos
+      nomes <- basename(arquivos$name)
+      nomes <- limpar_segmento_caminho(nomes)
+      
+      if (!all(grepl("\\.pdf$", nomes, ignore.case = TRUE))) {
+        stop("Envie apenas arquivos PDF.")
+      }
+      
+      destinos <- file.path(destino, nomes)
+      
+      file_copy(
+        arquivos$datapath,
+        destinos,
+        overwrite = TRUE
+      )
+      
+      atualizar_pdfs()
+      
+      pdf_msg(
+        paste0(
+          length(destinos),
+          " PDF(s) salvo(s) em ",
+          input$pdf_empresa,
+          "/clientes/",
+          validar_competencia_pdf(input$pdf_competencia),
+          "/",
+          limpar_segmento_caminho(input$pdf_cliente)
+        )
+      )
+    },
+    error = function(e) {
+      pdf_msg(paste("Erro ao salvar PDFs:", conditionMessage(e)))
+    })
+  })
+  
+  entrada_zip_segura <- function(nome) {
+    nome <- gsub("\\\\", "/", nome)
+    nome <- sub("/+$", "", nome)
+    partes <- strsplit(nome, "/", fixed = TRUE)[[1]]
+    
+    nome != "" &&
+      !grepl("^/|^[A-Za-z]:", nome) &&
+      !any(partes %in% c("..", ""))
+  }
+  
+  observeEvent(input$importar_zip_pdfs, {
+    req(input$pdf_empresa)
+    req(input$pdf_zip)
+    
+    tryCatch({
+      competencia <- validar_competencia_pdf(input$pdf_competencia)
+      entradas <- utils::unzip(input$pdf_zip$datapath, list = TRUE)
+      
+      if (nrow(entradas) == 0) {
+        stop("ZIP vazio.")
+      }
+      
+      nomes_zip <- gsub("\\\\", "/", entradas$Name)
+      
+      if (!all(purrr::map_lgl(nomes_zip, entrada_zip_segura))) {
+        stop("ZIP possui caminhos inválidos.")
+      }
+      
+      pdfs_zip <- entradas |>
+        dplyr::mutate(nome_zip = nomes_zip) |>
+        dplyr::filter(
+          grepl("\\.pdf$", .data$nome_zip, ignore.case = TRUE),
+          grepl("/", .data$nome_zip, fixed = TRUE)
+        )
+      
+      if (nrow(pdfs_zip) == 0) {
+        stop("ZIP deve conter PDFs dentro de pastas de clientes.")
+      }
+      
+      tmp <- tempfile("pdfs-")
+      dir_create(tmp)
+      utils::unzip(input$pdf_zip$datapath, exdir = tmp)
+      
+      total <- 0
+      
+      for (i in seq_len(nrow(pdfs_zip))) {
+        nome_zip <- pdfs_zip$nome_zip[i]
+        partes <- strsplit(nome_zip, "/", fixed = TRUE)[[1]]
+        cliente <- limpar_segmento_caminho(partes[1])
+        arquivo <- limpar_segmento_caminho(tail(partes, 1))
+        
+        origem <- do.call(file.path, as.list(c(tmp, partes)))
+        destino_dir <- caminho_cliente_pdf(
+          input$pdf_empresa,
+          competencia,
+          cliente
+        )
+        
+        dir_create(destino_dir, recurse = TRUE)
+        file_copy(
+          origem,
+          file.path(destino_dir, arquivo),
+          overwrite = TRUE
+        )
+        
+        total <- total + 1
+      }
+      
+      atualizar_pdfs()
+      
+      pdf_msg(
+        paste0(
+          total,
+          " PDF(s) importado(s) do ZIP para ",
+          input$pdf_empresa,
+          "/clientes/",
+          competencia
+        )
+      )
+    },
+    error = function(e) {
+      pdf_msg(paste("Erro ao importar ZIP:", conditionMessage(e)))
+    })
+  })
+  
+  # =========================================================
   # DISPARO
   # =========================================================
   
@@ -400,6 +664,7 @@ server <- function(input, output, session) {
   }
   
   output$ui_competencia <- renderUI({
+    disparo_refresh()
     req(input$empresa)
     
     competencias <- buscar_competencias(input$empresa)
@@ -1552,6 +1817,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
   }
   
   output$ui_fila_competencia <- renderUI({
+    fila_refresh()
     req(input$fila_empresa)
     
     competencias <- buscar_competencias(input$fila_empresa)

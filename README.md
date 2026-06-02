@@ -23,6 +23,17 @@ O repositorio e publico. Por seguranca, arquivos com credenciais, destinatarios,
 
 Esses dados devem ser mantidos nas pastas persistentes do servidor em `/root/sistema-cobrancas-email`.
 
+## Upload de PDFs
+
+A aba `PDFs` permite criar uma nova competência no formato `AAAA-MM`, como `2026-06`.
+
+Os PDFs podem ser enviados de duas formas:
+
+- upload direto de um ou mais PDFs para um cliente selecionado;
+- importação de ZIP em lote, com o formato `Nome do Cliente/arquivo.pdf`.
+
+Os arquivos são gravados em `empresa/clientes/competencia/cliente`, que é a estrutura usada pelas telas `Disparo` e `Fila`.
+
 ## Deploy no Portainer
 
 1. Crie o registro DNS `cobrancas.wrtec.com.br` apontando para o servidor do Traefik.
