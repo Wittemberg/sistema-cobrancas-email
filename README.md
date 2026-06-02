@@ -32,6 +32,6 @@ Esses dados devem ser mantidos nas pastas persistentes do servidor em `/root/sis
 5. Crie uma stack no Portainer usando `docker-stack.portainer.yml`.
 6. Habilite o webhook da stack no Portainer.
 7. No GitHub, crie o secret `PORTAINER_WEBHOOK_URL` com a URL do webhook.
-8. Quando quiser ativar deploy automatico em push na `main`, crie a variavel `ENABLE_PORTAINER_DEPLOY` com valor `true`.
+8. Quando quiser ativar deploy automatico em push na `main`, crie o secret `ENABLE_PORTAINER_DEPLOY` com valor `true`.
 
 Enquanto `ENABLE_PORTAINER_DEPLOY` nao estiver como `true`, o Actions so constroi e publica a imagem.

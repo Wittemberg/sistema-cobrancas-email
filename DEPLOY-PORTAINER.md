@@ -47,7 +47,7 @@ O webhook do Portainer so e chamado quando uma destas condicoes for verdadeira:
 Crie no repositorio GitHub:
 
 - Secret `PORTAINER_WEBHOOK_URL`: URL do webhook da stack no Portainer.
-- Variable `ENABLE_PORTAINER_DEPLOY`: use `false` ou nao crie enquanto o DNS nao estiver pronto; altere para `true` quando quiser deploy automatico.
+- Secret `ENABLE_PORTAINER_DEPLOY`: use `false` ou nao crie enquanto o deploy automatico nao deve rodar; altere para `true` quando quiser atualizar a stack a cada push na `main`.
 
 Na stack Portainer, defina antes do primeiro deploy:
 
