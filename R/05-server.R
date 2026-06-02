@@ -571,10 +571,56 @@ server <- function(input, output, session) {
   
   remetentes_msg <- reactiveVal("Aguardando edição.")
   remetentes_refresh <- reactiveVal(0)
+  smtp_opcoes_refresh <- reactiveVal(0)
   
   atualizar_remetentes <- function() {
     atualizar_contador(remetentes_refresh)
   }
+  
+  carregar_smtp_opcoes <- function() {
+    caminho <- file.path(pasta_raiz, "_config", "smtp.csv")
+    
+    if (!file.exists(caminho)) {
+      return(character(0))
+    }
+    
+    dados <- readr::read_csv(
+      caminho,
+      show_col_types = FALSE,
+      col_types = readr::cols(.default = "c")
+    )
+    
+    if (!"smtp_id" %in% names(dados) || nrow(dados) == 0) {
+      return(character(0))
+    }
+    
+    dados <- dados |>
+      dplyr::filter(!is.na(.data$smtp_id), .data$smtp_id != "") |>
+      dplyr::distinct(.data$smtp_id, .keep_all = TRUE)
+    
+    rotulos <- dados$smtp_id
+    
+    if ("email" %in% names(dados)) {
+      rotulos <- ifelse(
+        is.na(dados$email) | dados$email == "",
+        dados$smtp_id,
+        paste0(dados$smtp_id, " - ", dados$email)
+      )
+    }
+    
+    stats::setNames(dados$smtp_id, rotulos)
+  }
+  
+  output$ui_rem_smtp_id <- renderUI({
+    smtp_opcoes_refresh()
+    
+    selectInput(
+      "rem_smtp_id",
+      "SMTP ID",
+      choices = carregar_smtp_opcoes(),
+      selected = character(0)
+    )
+  })
   
   carregar_remetentes_dados <- function() {
     caminho <- file.path(pasta_raiz, "_config", "remetentes.csv")
@@ -641,7 +687,7 @@ server <- function(input, output, session) {
     updateTextInput(session, "rem_empresa_nome", value = remetente$empresa_nome)
     updateTextInput(session, "rem_email", value = remetente$email_remetente)
     updateTextInput(session, "rem_nome", value = remetente$nome_remetente)
-    updateTextInput(session, "rem_smtp_id", value = remetente$smtp_id)
+    updateSelectInput(session, "rem_smtp_id", selected = remetente$smtp_id)
     updateCheckboxInput(session, "rem_ativo", value = as.logical(remetente$ativo))
     
     remetentes_msg(paste("Remetente carregado:", remetente$email_remetente))
@@ -649,18 +695,28 @@ server <- function(input, output, session) {
   
   observeEvent(input$novo_remetente, {
     session$userData$remetente_modo_novo <- TRUE
+    opcoes_smtp <- unname(carregar_smtp_opcoes())
     
     updateTextInput(session, "rem_empresa_id", value = "")
     updateTextInput(session, "rem_empresa_nome", value = "")
     updateTextInput(session, "rem_email", value = "")
     updateTextInput(session, "rem_nome", value = "")
-    updateTextInput(session, "rem_smtp_id", value = "")
+    updateSelectInput(
+      session,
+      "rem_smtp_id",
+      selected = if (length(opcoes_smtp) > 0) opcoes_smtp[1] else character(0)
+    )
     updateCheckboxInput(session, "rem_ativo", value = TRUE)
     
     remetentes_msg("Novo remetente.")
   })
   
   observeEvent(input$salvar_remetente, {
+    if (is.null(input$rem_smtp_id) || input$rem_smtp_id == "") {
+      remetentes_msg("Cadastre um SMTP antes de salvar o remetente.")
+      return()
+    }
+    
     dados <- carregar_remetentes_dados()
     
     novo_registro <- tibble::tibble(
@@ -749,6 +805,7 @@ server <- function(input, output, session) {
   
   atualizar_smtp <- function() {
     atualizar_contador(smtp_refresh)
+    atualizar_contador(smtp_opcoes_refresh)
   }
   
   carregar_smtp_dados <- function() {

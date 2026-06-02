@@ -414,7 +414,7 @@ ui_app <- fluidPage(
             textInput("rem_empresa_nome", "Nome da Empresa"),
             textInput("rem_email", "Email Remetente"),
             textInput("rem_nome", "Nome Remetente"),
-            textInput("rem_smtp_id", "SMTP ID"),
+            uiOutput("ui_rem_smtp_id"),
             
             checkboxInput("rem_ativo", "Remetente ativo", value = TRUE),
             
