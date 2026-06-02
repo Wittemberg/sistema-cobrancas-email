@@ -1,0 +1,13 @@
+.Rproj.user/
+.RData
+.Rhistory
+*.Rproj
+
+backups/
+logs/*.csv
+sistema-cobrancas-email--/
+
+# Sensitive runtime data. Keep these in Portainer volumes or private backups.
+_config/*.csv
+*/destinatarios*.csv
+*/clientes/

@@ -1,0 +1,720 @@
+# =========================================================
+# INTERFACE
+# =========================================================
+
+ui_app <- fluidPage(
+  tags$head(
+    tags$style(HTML("
+      body {
+        background-color: #f5f5f5;
+      }
+
+      .navbar {
+        background: linear-gradient(90deg, #1f1f1f, #3a3a3a);
+        border-bottom: 4px solid #d40000;
+      }
+
+      .navbar-brand {
+        color: white !important;
+        font-size: 24px;
+        font-weight: bold;
+      }
+
+      .btn-primary {
+        background-color: #d40000;
+        border-color: #d40000;
+      }
+
+      .btn-primary:hover {
+        background-color: #a00000;
+      }
+
+      table.dataTable thead {
+        background-color: #2a2a2a;
+        color: white;
+      }
+
+      h3 {
+        border-left: 5px solid #d40000;
+        padding-left: 10px;
+      }
+
+      .tela-padrao {
+        display: flex;
+        align-items: flex-start;
+        gap: 24px;
+        width: 100%;
+      }
+
+      .coluna-edicao {
+        width: 430px;
+        min-width: 430px;
+        max-width: 430px;
+      }
+
+      .coluna-conteudo {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .painel-formulario {
+        background-color: #ffffff;
+        border: 1px solid #dddddd;
+        border-radius: 8px;
+        padding: 24px;
+        margin-top: 24px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .painel-conteudo {
+        padding-top: 24px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .painel-formulario h3,
+      .painel-conteudo h3 {
+        margin-top: 0;
+        margin-bottom: 18px;
+      }
+    "))
+  ),
+  
+  navbarPage(
+    title = "Disparo de Mensagens",
+    id = "abas",
+    
+    tabPanel(
+      "Dashboard",
+      br(),
+      
+      fluidRow(
+        column(3, div(class = "well", h4("Empresas"), h2(textOutput("dash_empresas")))),
+        column(3, div(class = "well", h4("Clientes Ativos"), h2(textOutput("dash_clientes_ativos")))),
+        column(2, div(class = "well", h4("Envios OK"), h2(textOutput("dash_envios_ok")))),
+        column(2, div(class = "well", h4("Erros"), h2(textOutput("dash_envios_erro")))),
+        column(2, div(class = "well", h4("Fila Pendente"), h2(textOutput("dash_fila_pendente"))))
+      ),      
+      fluidRow(
+        column(
+          6,
+          div(
+            class = "painel-conteudo",
+            h3("Envios por Empresa"),
+            DTOutput("dash_envios_empresa")
+          )
+        ),
+        column(
+          6,
+          div(
+            class = "painel-conteudo",
+            h3("Últimos Envios"),
+            DTOutput("dash_ultimos_envios")
+          )
+        )
+      )
+    ),
+    
+    tabPanel(
+      "Disparo",
+      
+      div(
+        class = "tela-padrao",
+        
+        div(
+          class = "coluna-edicao",
+          div(
+            class = "painel-formulario",
+            
+            selectInput("empresa", "Empresa", choices = listar_empresas()),
+            uiOutput("ui_competencia"),
+            textInput("mes_email", "Mês de referência do email", value = "Abril"),
+            numericInput("ano_email", "Ano de referência do email", value = 2026, min = 2020, max = 2100),
+            checkboxInput("somente_ativos", "Mostrar somente clientes ativos", value = TRUE),
+            actionButton("atualizar", "Atualizar Lista"),
+            
+            hr(),
+            
+            checkboxInput(
+              "confirmar_envio",
+              "Confirmo que revisei os dados para envio em massa",
+              value = FALSE
+            ),
+            
+            actionButton("enviar_todos", "Enviar Todos", class = "btn-primary"),
+            
+            hr(),
+            
+            actionButton("backup_agora", "Criar Backup Agora"),
+            
+            br(), br(),
+            
+            verbatimTextOutput("mensagem_backup")
+          )
+        ),
+        
+        div(
+          class = "coluna-conteudo",
+          div(
+            class = "painel-conteudo",
+            
+            h3("Clientes aptos para envio"),
+            
+            DTOutput("tabela_clientes"),
+            
+            br(),
+            
+            verbatimTextOutput("resultado_envio")
+          )
+        )
+      )
+    ),
+    
+    tabPanel(
+      "Fila",
+      
+      div(
+        class = "tela-padrao",
+        
+        div(
+          class = "coluna-edicao",
+          div(
+            class = "painel-formulario",
+            
+            h3("Fila de Envio"),
+            
+            selectInput(
+              "fila_empresa",
+              "Empresa",
+              choices = listar_empresas()
+            ),
+            
+            uiOutput("ui_fila_competencia"),
+            
+            textInput(
+              "fila_mes_email",
+              "Mês de referência do email",
+              value = "Abril"
+            ),
+            
+            numericInput(
+              "fila_ano_email",
+              "Ano de referência do email",
+              value = 2026,
+              min = 2020,
+              max = 2100
+            ),
+            
+            hr(),
+            
+            actionButton(
+              "gerar_fila",
+              "Gerar Fila",
+              class = "btn-primary"
+            ),
+            
+            br(),
+            br(),
+            
+            actionButton(
+              "processar_fila",
+              "Processar Fila"
+            ),
+            
+            br(),
+            br(),
+            
+            actionButton(
+              "limpar_fila",
+              "Limpar Fila"
+            ),
+            
+            br(),
+            br(),
+            
+            verbatimTextOutput("fila_msg")
+          )
+        ),
+        
+        div(
+          class = "coluna-conteudo",
+          div(
+            class = "painel-conteudo",
+            
+            h3("Itens da Fila"),
+            
+            DTOutput("fila_tabela")
+          )
+        )
+      )
+    ),
+    
+    tabPanel(
+      "Clientes",
+      
+      div(
+        class = "tela-padrao",
+        
+        div(
+          class = "coluna-edicao",
+          div(
+            class = "painel-formulario",
+            
+            h3("Cadastro de Clientes"),
+            
+            selectInput("clientes_empresa", "Empresa", choices = listar_empresas()),
+            
+            hr(),
+            
+            fileInput("importar_clientes", "Importar clientes CSV", accept = ".csv"),
+            
+            checkboxInput(
+              "substituir_clientes",
+              "Substituir lista atual ao importar",
+              value = FALSE
+            ),
+            
+            hr(),
+            
+            textInput("cliente_nome_edit", "Cliente"),
+            textInput("cliente_email", "Email Principal"),
+            textInput("cliente_copias", "Emails Cópia"),
+            textInput("cliente_whatsapp", "WhatsApp"),
+            
+            checkboxInput("cliente_ativo", "Cliente ativo", value = TRUE),
+            
+            textAreaInput(
+              "cliente_observacao",
+              "Observação",
+              rows = 3
+            ),
+            
+            fluidRow(
+              column(6, actionButton("novo_cliente", "Novo")),
+              column(6, actionButton("salvar_cliente", "Salvar", class = "btn-primary"))
+            ),
+            
+            br(),
+            
+            actionButton("excluir_cliente", "Excluir Cliente"),
+            
+            br(), br(),
+            
+            verbatimTextOutput("clientes_msg")
+          )
+        ),
+        
+        div(
+          class = "coluna-conteudo",
+          div(
+            class = "painel-conteudo",
+            h3("Clientes cadastrados"),
+            DTOutput("clientes_tabela")
+          )
+        )
+      )
+    ),
+    
+    tabPanel(
+      "Modelos",
+      
+      div(
+        class = "tela-padrao",
+        
+        div(
+          class = "coluna-edicao",
+          div(
+            class = "painel-formulario",
+            
+            h3("Empresa"),
+            
+            selectInput("modelos_empresa", "Empresa", choices = listar_empresas()),
+            
+            hr(),
+            
+            helpText("Chaves disponíveis:"),
+            
+            tags$ul(
+              tags$li("{{cliente_nome}}"),
+              tags$li("{{empresa_nome}}"),
+              tags$li("{{mes_referencia}}"),
+              tags$li("{{ano_referencia}}"),
+              tags$li("{{competencia_pdfs}}")
+            ),
+            
+            hr(),
+            
+            actionButton("salvar_modelos", "Salvar Modelos", class = "btn-primary"),
+            
+            br(),
+            br(),
+            
+            actionButton(
+              "visualizar_template",
+              "Visualizar no Template"
+            ),
+            
+            br(), br(),
+            
+            verbatimTextOutput("modelos_msg")
+          )
+        ),
+        
+        div(
+          class = "coluna-conteudo",
+          div(
+            class = "painel-conteudo",
+            
+            h3("Modelos de Email"),
+            
+            textAreaInput(
+              "modelo_assunto",
+              "Assunto",
+              rows = 3,
+              width = "100%"
+            ),
+            
+            textAreaInput(
+              "modelo_corpo",
+              "Corpo do Email",
+              rows = 16,
+              width = "100%"
+            )
+          )
+        )
+      )
+    ),
+    
+    tabPanel(
+      "Remetentes",
+      
+      div(
+        class = "tela-padrao",
+        
+        div(
+          class = "coluna-edicao",
+          div(
+            class = "painel-formulario",
+            
+            h3("Cadastro de Remetentes"),
+            
+            fileInput("importar_remetentes", "Importar remetentes CSV", accept = ".csv"),
+            
+            checkboxInput(
+              "substituir_remetentes",
+              "Substituir lista atual ao importar",
+              value = FALSE
+            ),
+            
+            hr(),
+            
+            textInput("rem_empresa_id", "ID da Empresa"),
+            textInput("rem_empresa_nome", "Nome da Empresa"),
+            textInput("rem_email", "Email Remetente"),
+            textInput("rem_nome", "Nome Remetente"),
+            textInput("rem_smtp_id", "SMTP ID"),
+            
+            checkboxInput("rem_ativo", "Remetente ativo", value = TRUE),
+            
+            fluidRow(
+              column(6, actionButton("novo_remetente", "Novo")),
+              column(6, actionButton("salvar_remetente", "Salvar", class = "btn-primary"))
+            ),
+            
+            br(),
+            
+            actionButton("excluir_remetente", "Excluir Remetente"),
+            
+            br(), br(),
+            
+            verbatimTextOutput("remetentes_msg")
+          )
+        ),
+        
+        div(
+          class = "coluna-conteudo",
+          div(
+            class = "painel-conteudo",
+            h3("Remetentes cadastrados"),
+            DTOutput("remetentes_tabela")
+          )
+        )
+      )
+    ),
+    
+    tabPanel(
+      "SMTP",
+      
+      div(
+        class = "tela-padrao",
+        
+        div(
+          class = "coluna-edicao",
+          div(
+            class = "painel-formulario",
+            
+            h3("Configuração SMTP"),
+            
+            fileInput("importar_smtp", "Importar SMTP CSV", accept = ".csv"),
+            
+            checkboxInput(
+              "substituir_smtp",
+              "Substituir lista atual ao importar",
+              value = FALSE
+            ),
+            
+            hr(),
+            
+            textInput("smtp_id_form", "SMTP ID"),
+            textInput("smtp_email_form", "Email"),
+            textInput("smtp_host_form", "Host"),
+            textInput("smtp_port_form", "Porta"),
+            checkboxInput("smtp_ssl_form", "Usar SSL", value = TRUE),
+            textInput("smtp_usuario_form", "Usuário"),
+            textInput("smtp_observacao_form", "Observação"),
+            passwordInput("smtp_senha_form", "Senha"),
+            
+            textInput(
+              "smtp_email_teste",
+              "Email para teste",
+              value = ""
+            ),
+            
+            actionButton(
+              "testar_smtp",
+              "Testar Envio",
+              class = "btn-primary"
+            ),
+            
+            br(), br(),
+            
+            fluidRow(
+              column(6, actionButton("novo_smtp", "Novo")),
+              column(6, actionButton("salvar_smtp", "Salvar", class = "btn-primary"))
+            ),
+            
+            br(),
+            
+            actionButton("excluir_smtp", "Excluir SMTP"),
+            
+            br(), br(),
+            
+            verbatimTextOutput("smtp_msg")
+          )
+        ),
+        
+        div(
+          class = "coluna-conteudo",
+          div(
+            class = "painel-conteudo",
+            h3("SMTP cadastrados"),
+            DTOutput("smtp_tabela")
+          )
+        )
+      )
+    ),
+    
+    tabPanel(
+      "Chatwoot",
+      
+      div(
+        class = "tela-padrao",
+        
+        div(
+          class = "coluna-edicao",
+          div(
+            class = "painel-formulario",
+            
+            h3("Configuração Chatwoot"),
+            
+            textInput("cw_id", "Chatwoot ID"),
+            textInput("cw_empresa_id", "Empresa ID"),
+            textInput("cw_base_url", "URL Base"),
+            textInput("cw_account_id", "Account ID"),
+            textInput("cw_inbox_identifier", "Inbox Identifier"),
+            passwordInput("cw_token", "API Access Token"),
+            
+            checkboxInput("cw_ativo", "Ativo", value = TRUE),
+            
+            textAreaInput(
+              "cw_observacao",
+              "Observação",
+              rows = 3
+            ),
+            
+            fluidRow(
+              column(6, actionButton("cw_novo", "Novo")),
+              column(6, actionButton("cw_salvar", "Salvar", class = "btn-primary"))
+            ),
+            
+            br(),
+            
+            actionButton("cw_excluir", "Excluir Configuração"),
+            
+            hr(),
+            
+            textInput(
+              "cw_teste_nome",
+              "Nome para teste",
+              value = "Cliente Teste"
+            ),
+            
+            textInput(
+              "cw_teste_telefone",
+              "WhatsApp para teste",
+              value = ""
+            ),
+            
+            textAreaInput(
+              "cw_teste_msg",
+              "Mensagem de teste",
+              value = "Teste de envio via Chatwoot.",
+              rows = 4
+            ),
+            
+            actionButton(
+              "cw_testar_envio",
+              "Testar Envio",
+              class = "btn-primary"
+            ),
+            
+            br(), br(),
+            
+            verbatimTextOutput("cw_msg")
+          )
+        ),
+        
+        div(
+          class = "coluna-conteudo",
+          div(
+            class = "painel-conteudo",
+            
+            h3("Configurações cadastradas"),
+            
+            DTOutput("cw_tabela")
+          )
+        )
+      )
+    ),
+    
+    tabPanel(
+      "Logs",
+      
+      div(
+        class = "tela-padrao",
+        
+        div(
+          class = "coluna-edicao",
+          div(
+            class = "painel-formulario",
+            
+            h3("Filtros"),
+            
+            selectInput(
+              "logs_empresa",
+              "Empresa",
+              choices = c("Todas", listar_empresas())
+            ),
+            
+            textInput(
+              "logs_competencia",
+              "Competência",
+              value = ""
+            ),
+            
+            actionButton("atualizar_logs", "Atualizar Logs"),
+            
+            hr(),
+            
+            actionButton(
+              "reenviar_falhas",
+              "Reenviar Falhas",
+              class = "btn-primary"
+            ),
+            
+            br(), br(),
+            
+            verbatimTextOutput("logs_msg")
+          )
+        ),
+        
+        div(
+          class = "coluna-conteudo",
+          div(
+            class = "painel-conteudo",
+            
+            h3("Histórico de Envios"),
+            
+            DTOutput("logs_tabela")
+          )
+        )
+      )
+    )
+  )
+)
+ui_login <- fluidPage(
+  tags$head(
+    tags$style(HTML("
+      body {
+        background-color: #f5f5f5;
+      }
+
+      .login-box {
+        max-width: 420px;
+        margin: 90px auto;
+        background: #ffffff;
+        padding: 28px;
+        border-radius: 10px;
+        border-top: 5px solid #d40000;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+      }
+
+      .btn-primary {
+        background-color: #d40000;
+        border-color: #d40000;
+      }
+
+      .btn-primary:hover {
+        background-color: #a00000;
+      }
+    ")),
+    
+    tags$script(HTML("
+  $(document).on('keydown', '#login_senha', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+
+      setTimeout(function() {
+        $('#login_entrar').click();
+      }, 150);
+    }
+  });
+"))  ),
+  
+  div(
+    class = "login-box",
+    
+    h2("Disparo de Mensagens"),
+    
+    textInput("login_usuario", "Usuário"),
+    
+    passwordInput("login_senha", "Senha"),
+    
+    actionButton(
+      "login_entrar",
+      "Entrar",
+      class = "btn-primary"
+    ),
+    
+    br(),
+    br(),
+    
+    verbatimTextOutput("login_msg"),
+    
+    helpText("Usuário inicial: admin | Defina APP_ADMIN_PASSWORD no Portainer antes do primeiro deploy")
+  )
+)
+
+ui <- uiOutput("ui_principal")

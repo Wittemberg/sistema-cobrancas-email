@@ -1,0 +1,16 @@
+.git
+.github
+.Rproj.user
+.RData
+.Rhistory
+*.Rproj
+
+backups/
+logs/*.csv
+sistema-cobrancas-email--/
+
+# Runtime data with credentials, customer lists, and PDFs must be provided by
+# Portainer volumes instead of being baked into a public image.
+_config/*.csv
+*/destinatarios*.csv
+*/clientes/

@@ -1,0 +1,11 @@
+Segue em anexo NF e Boleto Nuvem referente {{mes_atual}}/{{ano_atual}}.
+
+Caso desejem, é possível fazer o pagamento via PIX para: 13.317.871/0001-85
+
+Ou depósito em conta corrente:
+
+Banco: 077 (Inter)
+Agência: 0001
+Conta: 5343660-1
+
+Grato pela compreensão.

@@ -1,0 +1,5 @@
+Segue em anexo NF e Boleto Manutenção/Contrato Ref. {{mes_atual}}/{{ano_atual}}.
+
+O pagamento poderá ser feito por PIX, usando o CNPJ da NF.
+
+Agradecemos desde já.

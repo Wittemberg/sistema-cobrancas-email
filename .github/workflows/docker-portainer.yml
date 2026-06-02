@@ -1,0 +1,55 @@
+name: Build and update Portainer
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      trigger_portainer:
+        description: "Disparar webhook do Portainer depois do build"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/wittemberg/sistema-cobrancas-email
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  update-portainer:
+    runs-on: ubuntu-latest
+    needs: build
+    if: >
+      (github.event_name == 'push' && vars.ENABLE_PORTAINER_DEPLOY == 'true') ||
+      (github.event_name == 'workflow_dispatch' && inputs.trigger_portainer == true)
+    steps:
+      - name: Trigger Portainer webhook
+        run: |
+          test -n "${{ secrets.PORTAINER_WEBHOOK_URL }}"
+          curl --fail --show-error --silent --request POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"

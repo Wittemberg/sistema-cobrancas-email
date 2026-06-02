@@ -1,0 +1,22 @@
+### A T E N Ç Ã O ###
+
+Sua Nota Fiscal e Boleto correspondente foi emitido por um destes CNPJs:
+
+42.763.165/0001-65
+64.278.848/0001-60
+60.642.971/0001-67
+61.427.391/0001-10
+18.835.100/0001-01
+61.624.963/0001-50
+54.652.270/0001-06
+63.349.392/0001-19
+65.060.282/0001-68
+
+Não se preocupe, são todos de responsabilidade da AWE Cloud Solution.
+
+Segue em anexo NF e Boleto Nuvem {{mes_atual}}/{{ano_atual}}.
+
+Se o Boleto/NF foi emitido pelo CNPJ da AWE, o PIX é comercial@awecloudsolution.com.
+Se foi faturado por outro CNPJ, o PIX é o próprio CNPJ de faturamento.
+
+Grato pela compreensão.

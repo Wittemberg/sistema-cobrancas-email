@@ -1,0 +1,45 @@
+version: "3.7"
+
+services:
+  cobrancas-email:
+    image: ghcr.io/wittemberg/sistema-cobrancas-email:latest
+    networks:
+      - interna
+    environment:
+      TZ: America/Sao_Paulo
+      APP_ADMIN_USER: ${APP_ADMIN_USER:-admin}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?Defina APP_ADMIN_PASSWORD antes do primeiro deploy}
+    volumes:
+      - cobrancas_config:/srv/app/_config
+      - cobrancas_logs:/srv/app/logs
+      - cobrancas_backups:/srv/app/backups
+      - cobrancas_awe:/srv/app/awe
+      - cobrancas_tecnoteam:/srv/app/tecnoteam
+      - cobrancas_wr_tecnologia:/srv/app/wr-tecnologia
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=interna"
+        - "traefik.http.routers.cobrancas-email.rule=Host(`cobranca.wrtec.com.br`)"
+        - "traefik.http.routers.cobrancas-email.entrypoints=websecure"
+        - "traefik.http.routers.cobrancas-email.tls=true"
+        - "traefik.http.routers.cobrancas-email.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.cobrancas-email.loadbalancer.server.port=3838"
+
+volumes:
+  cobrancas_config:
+  cobrancas_logs:
+  cobrancas_backups:
+  cobrancas_awe:
+  cobrancas_tecnoteam:
+  cobrancas_wr_tecnologia:
+
+networks:
+  interna:
+    external: true
