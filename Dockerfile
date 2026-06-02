@@ -26,9 +26,8 @@ COPY contexto.md ./contexto.md
 COPY awe ./awe
 COPY tecnoteam ./tecnoteam
 COPY wr-tecnologia ./wr-tecnologia
-COPY _config ./_config
 
-RUN mkdir -p logs backups \
+RUN mkdir -p _config logs backups \
     && chmod -R 0775 /srv/shiny-server
 
 EXPOSE 3838
