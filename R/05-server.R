@@ -731,6 +731,8 @@ server <- function(input, output, session) {
     }
     
     tryCatch({
+      pdf_msg("Processando limpeza de competências antigas...")
+      
       reter <- as.integer(input$pdf_reter_meses)
       
       if (is.na(reter) || reter < 1) {
@@ -762,10 +764,29 @@ server <- function(input, output, session) {
         )
       )
       
+      withProgress(
+        message = "Compactando e removendo competências antigas...",
+        value = 0,
+        {
+          total_remover <- length(remover)
+          idx_remocao <- 0
+          
       for (competencia in remover) {
+        idx_remocao <- idx_remocao + 1
+        
+        setProgress(
+          value = (idx_remocao - 1) / total_remover,
+          detail = paste("Criando backup de", competencia)
+        )
+        
         zip_backup <- criar_backup_competencia_pdf(
           input$pdf_empresa,
           competencia
+        )
+        
+        setProgress(
+          value = (idx_remocao - 0.5) / total_remover,
+          detail = paste("Removendo", competencia)
         )
         
         pasta_competencia <- validar_pasta_competencia_para_remocao(
@@ -792,7 +813,19 @@ server <- function(input, output, session) {
             zip_backup
           )
         )
+        
+        setProgress(
+          value = idx_remocao / total_remover,
+          detail = paste("Finalizada", competencia)
+        )
       }
+      
+          setProgress(
+            value = 1,
+            detail = "Limpeza concluída"
+          )
+        }
+      )
       
       atualizar_pdfs()
       updateCheckboxInput(session, "pdf_confirmar_limpeza", value = FALSE)
