@@ -136,6 +136,8 @@ enviar_email_cliente <- function(
     credentials = credenciais
   )
 
+  return(TRUE)
+
   if (isTRUE(enviar_whatsapp) && exists("enviar_whatsapp_cliente")) {
     tryCatch(
       enviar_whatsapp_cliente(
@@ -148,6 +150,48 @@ enviar_email_cliente <- function(
       ),
       error = function(e) {
         message("WhatsApp não enviado: ", conditionMessage(e))
+      }
+    )
+
+    intervalo <- as.numeric(whatsapp_intervalo_segundos)
+
+    if (!is.na(intervalo) && intervalo > 0) {
+      Sys.sleep(intervalo)
+    }
+  }
+
+  TRUE
+}
+
+enviar_whatsapp_apos_tentativa_email <- function(
+    empresa,
+    cliente,
+    competencia,
+    mes_email,
+    ano_email,
+    enviar_whatsapp = FALSE,
+    whatsapp_intervalo_segundos = 0,
+    email_status = "email_enviado"
+) {
+  if (isTRUE(enviar_whatsapp) && exists("enviar_whatsapp_cliente")) {
+    origem <- if (identical(email_status, "email_falha")) {
+      "automatico_email_falha"
+    } else {
+      "automatico_email"
+    }
+
+    tryCatch(
+      enviar_whatsapp_cliente(
+        empresa = empresa,
+        cliente = cliente,
+        origem = origem,
+        competencia = competencia,
+        mes_email = mes_email,
+        ano_email = ano_email,
+        email_status = email_status
+      ),
+      error = function(e) {
+        message("WhatsApp nao enviado: ", conditionMessage(e))
       }
     )
 

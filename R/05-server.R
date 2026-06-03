@@ -2306,6 +2306,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         for (idx in seq_along(pendentes)) {
           i <- pendentes[idx]
           item <- fila[i, ]
+          cliente <- NULL
 
           incProgress(
             amount = 1 / total_itens,
@@ -2334,8 +2335,18 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
                 competencia = item$competencia,
                 mes_email = input$fila_mes_email,
                 ano_email = input$fila_ano_email,
+                enviar_whatsapp = FALSE
+              )
+
+              enviar_whatsapp_apos_tentativa_email(
+                empresa = item$empresa,
+                cliente = cliente,
+                competencia = item$competencia,
+                mes_email = input$fila_mes_email,
+                ano_email = input$fila_ano_email,
                 enviar_whatsapp = isTRUE(input$fila_enviar_whatsapp_pos_email),
-                whatsapp_intervalo_segundos = input$fila_whatsapp_intervalo_segundos
+                whatsapp_intervalo_segundos = input$fila_whatsapp_intervalo_segundos,
+                email_status = "email_enviado"
               )
 
               fila$status[i] <- "enviado"
@@ -2345,6 +2356,19 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
               resultado <- c(resultado, paste("OK:", item$cliente_nome))
             },
             error = function(e) {
+              if (is.data.frame(cliente) && nrow(cliente) > 0) {
+                enviar_whatsapp_apos_tentativa_email(
+                  empresa = item$empresa,
+                  cliente = cliente,
+                  competencia = item$competencia,
+                  mes_email = input$fila_mes_email,
+                  ano_email = input$fila_ano_email,
+                  enviar_whatsapp = isTRUE(input$fila_enviar_whatsapp_pos_email),
+                  whatsapp_intervalo_segundos = input$fila_whatsapp_intervalo_segundos,
+                  email_status = "email_falha"
+                )
+              }
+
               fila$status[i] <<- "erro"
               salvar_fila(fila)
               atualizar_fila()
@@ -2421,13 +2445,34 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
             competencia = input$competencia,
             mes_email = input$mes_email,
             ano_email = input$ano_email,
+            enviar_whatsapp = FALSE
+          )
+
+          enviar_whatsapp_apos_tentativa_email(
+            empresa = input$empresa,
+            cliente = cliente,
+            competencia = input$competencia,
+            mes_email = input$mes_email,
+            ano_email = input$ano_email,
             enviar_whatsapp = isTRUE(input$enviar_whatsapp_pos_email),
-            whatsapp_intervalo_segundos = input$whatsapp_intervalo_segundos
+            whatsapp_intervalo_segundos = input$whatsapp_intervalo_segundos,
+            email_status = "email_enviado"
           )
 
           resultado <- c(resultado, paste("OK:", cliente$cliente_nome))
         },
         error = function(e) {
+          enviar_whatsapp_apos_tentativa_email(
+            empresa = input$empresa,
+            cliente = cliente,
+            competencia = input$competencia,
+            mes_email = input$mes_email,
+            ano_email = input$ano_email,
+            enviar_whatsapp = isTRUE(input$enviar_whatsapp_pos_email),
+            whatsapp_intervalo_segundos = input$whatsapp_intervalo_segundos,
+            email_status = "email_falha"
+          )
+
           resultado <<- c(
             resultado,
             paste("ERRO:", cliente$cliente_nome, "-", conditionMessage(e))

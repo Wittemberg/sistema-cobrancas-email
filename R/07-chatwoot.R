@@ -130,7 +130,37 @@ substituir_variaveis_whatsapp <- function(
     gsub("{{ano_referencia}}", as.character(ano_email), x = _, fixed = TRUE)
 }
 
-mensagem_whatsapp_padrao <- function(empresa, cliente, competencia, mes_email, ano_email) {
+mensagem_whatsapp_padrao <- function(
+    empresa,
+    cliente,
+    competencia,
+    mes_email,
+    ano_email,
+    email_status = "email_enviado"
+) {
+  texto <- if (identical(email_status, "email_falha")) {
+    paste(
+      "Olá, {{cliente_nome}}.",
+      "{{empresa_nome}} está entrando em contato sobre os documentos referentes à competência {{competencia_pdfs}}.",
+      "Qualquer dúvida, estamos à disposição."
+    )
+  } else {
+    paste(
+      "Olá, {{cliente_nome}}.",
+      "{{empresa_nome}} enviou por e-mail os documentos referentes à competência {{competencia_pdfs}}.",
+      "Qualquer dúvida, estamos à disposição."
+    )
+  }
+
+  return(substituir_variaveis_whatsapp(
+    texto,
+    empresa = empresa,
+    cliente = cliente,
+    competencia = competencia,
+    mes_email = mes_email,
+    ano_email = ano_email
+  ))
+
   substituir_variaveis_whatsapp(
     paste(
       "Olá, {{cliente_nome}}.",
@@ -152,7 +182,8 @@ enviar_whatsapp_cliente <- function(
     origem = "manual",
     competencia = "",
     mes_email = "",
-    ano_email = ""
+    ano_email = "",
+    email_status = "email_enviado"
 ) {
   cliente_nome <- as.character(cliente$cliente_nome)
   telefone <- as.character(cliente$telefone_whatsapp)
@@ -162,7 +193,8 @@ enviar_whatsapp_cliente <- function(
       cliente = cliente,
       competencia = competencia,
       mes_email = mes_email,
-      ano_email = ano_email
+      ano_email = ano_email,
+      email_status = email_status
     )
   } else {
     substituir_variaveis_whatsapp(
