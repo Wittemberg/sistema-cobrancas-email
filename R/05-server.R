@@ -614,7 +614,9 @@ server <- function(input, output, session) {
       type = "directory",
       recurse = FALSE
     )
-
+    
+    pastas <- pastas[basename(pastas) != competencia]
+    
     if (length(pastas) == 0) {
       return(
         tibble::tibble(
@@ -709,6 +711,24 @@ server <- function(input, output, session) {
       !grepl("^/|^[A-Za-z]:", nome) &&
       !any(partes %in% c("..", ""))
   }
+  
+  interpretar_pdf_zip <- function(nome_zip, competencia) {
+    partes <- strsplit(nome_zip, "/", fixed = TRUE)[[1]]
+    
+    if (length(partes) >= 3 && partes[1] == competencia) {
+      partes <- partes[-1]
+    }
+    
+    if (length(partes) < 2) {
+      return(NULL)
+    }
+    
+    list(
+      cliente = limpar_segmento_caminho(partes[1]),
+      arquivo = limpar_segmento_caminho(tail(partes, 1)),
+      partes = partes
+    )
+  }
 
   observeEvent(input$importar_zip_pdfs, {
     req(input$pdf_empresa)
@@ -731,12 +751,21 @@ server <- function(input, output, session) {
       pdfs_zip <- entradas |>
         dplyr::mutate(nome_zip = nomes_zip) |>
         dplyr::filter(
-          grepl("\\.pdf$", .data$nome_zip, ignore.case = TRUE),
-          grepl("/", .data$nome_zip, fixed = TRUE)
+          grepl("\\.pdf$", .data$nome_zip, ignore.case = TRUE)
         )
-
+      
+      pdfs_validos <- purrr::map(
+        pdfs_zip$nome_zip,
+        interpretar_pdf_zip,
+        competencia = competencia
+      )
+      
+      manter <- purrr::map_lgl(pdfs_validos, ~ !is.null(.x))
+      pdfs_zip <- pdfs_zip[manter, ]
+      pdfs_validos <- pdfs_validos[manter]
+      
       if (nrow(pdfs_zip) == 0) {
-        stop("ZIP deve conter PDFs dentro de pastas de clientes.")
+        stop("ZIP deve conter PDFs em Cliente/arquivo.pdf ou Competência/Cliente/arquivo.pdf.")
       }
 
       tmp <- tempfile("pdfs-")
@@ -746,12 +775,17 @@ server <- function(input, output, session) {
       total <- 0
 
       for (i in seq_len(nrow(pdfs_zip))) {
-        nome_zip <- pdfs_zip$nome_zip[i]
-        partes <- strsplit(nome_zip, "/", fixed = TRUE)[[1]]
-        cliente <- limpar_segmento_caminho(partes[1])
-        arquivo <- limpar_segmento_caminho(tail(partes, 1))
-
-        origem <- do.call(file.path, as.list(c(tmp, partes)))
+        item_zip <- pdfs_validos[[i]]
+        cliente <- item_zip$cliente
+        arquivo <- item_zip$arquivo
+        
+        origem <- do.call(file.path, as.list(c(tmp, item_zip$partes)))
+        
+        if (!file_exists(origem)) {
+          partes_com_raiz <- strsplit(pdfs_zip$nome_zip[i], "/", fixed = TRUE)[[1]]
+          origem <- do.call(file.path, as.list(c(tmp, partes_com_raiz)))
+        }
+        
         destino_dir <- caminho_cliente_pdf(
           input$pdf_empresa,
           competencia,

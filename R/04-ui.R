@@ -401,7 +401,7 @@ ui_app <- fluidPage(
               accept = ".zip"
             ),
 
-            helpText("Formato do ZIP: Nome do Cliente/arquivo.pdf"),
+            helpText("Formato do ZIP: Nome do Cliente/arquivo.pdf ou 2026-06/Nome do Cliente/arquivo.pdf"),
 
             actionButton(
               "importar_zip_pdfs",
