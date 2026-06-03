@@ -88,6 +88,38 @@ ui_app <- fluidPage(
         margin-top: 0;
         margin-bottom: 18px;
       }
+    ")),
+
+    tags$script(HTML("
+      function formatTelefoneBR(value) {
+        var digits = String(value || '').replace(/\\D/g, '');
+
+        if (digits.indexOf('55') === 0 && (digits.length === 12 || digits.length === 13)) {
+          digits = digits.substring(2);
+        }
+
+        if (digits.length > 11) {
+          digits = digits.substring(0, 11);
+        }
+
+        if (digits.length > 10) {
+          return '(' + digits.substring(0, 2) + ') ' + digits.substring(2, 7) + '-' + digits.substring(7, 11);
+        }
+
+        if (digits.length > 6) {
+          return '(' + digits.substring(0, 2) + ') ' + digits.substring(2, 6) + '-' + digits.substring(6, 10);
+        }
+
+        if (digits.length > 2) {
+          return '(' + digits.substring(0, 2) + ') ' + digits.substring(2);
+        }
+
+        return digits;
+      }
+
+      $(document).on('input blur', '#cliente_whatsapp, #cw_teste_telefone', function() {
+        $(this).val(formatTelefoneBR($(this).val()));
+      });
     "))
   ),
 

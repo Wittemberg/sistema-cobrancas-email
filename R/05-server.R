@@ -287,8 +287,16 @@ server <- function(input, output, session) {
   })
 
   output$clientes_tabela <- DT::renderDT({
+    dados_tabela <- clientes_dados()
+
+    if ("telefone_whatsapp" %in% names(dados_tabela)) {
+      dados_tabela$telefone_whatsapp <- formatar_telefone_br(
+        dados_tabela$telefone_whatsapp
+      )
+    }
+
     datatable_padrao(
-      clientes_dados(),
+      dados_tabela,
       selection = "single",
       colnames = c(
         "Cliente",
@@ -313,7 +321,7 @@ server <- function(input, output, session) {
     updateTextInput(session, "cliente_nome_edit", value = cliente$cliente_nome)
     updateTextInput(session, "cliente_email", value = cliente$email_principal)
     updateTextInput(session, "cliente_copias", value = cliente$email_copias)
-    updateTextInput(session, "cliente_whatsapp", value = cliente$telefone_whatsapp)
+    updateTextInput(session, "cliente_whatsapp", value = formatar_telefone_br(cliente$telefone_whatsapp))
     updateCheckboxInput(session, "cliente_ativo", value = as.logical(cliente$ativo))
     updateTextAreaInput(session, "cliente_observacao", value = cliente$observacao)
 
@@ -343,7 +351,7 @@ server <- function(input, output, session) {
       cliente_nome = as.character(input$cliente_nome_edit),
       email_principal = as.character(input$cliente_email),
       email_copias = as.character(input$cliente_copias),
-      telefone_whatsapp = as.character(input$cliente_whatsapp),
+      telefone_whatsapp = normalizar_telefone_br(input$cliente_whatsapp),
       ativo = as.logical(input$cliente_ativo),
       observacao = as.character(input$cliente_observacao)
     )
@@ -400,6 +408,7 @@ server <- function(input, output, session) {
       col_types = readr::cols(.default = "c")
     ) |>
       dplyr::mutate(
+        telefone_whatsapp = normalizar_telefone_br(.data$telefone_whatsapp),
         ativo = as.logical(.data$ativo)
       )
 
@@ -614,9 +623,9 @@ server <- function(input, output, session) {
       type = "directory",
       recurse = FALSE
     )
-    
+
     pastas <- pastas[basename(pastas) != competencia]
-    
+
     if (length(pastas) == 0) {
       return(
         tibble::tibble(
@@ -711,18 +720,18 @@ server <- function(input, output, session) {
       !grepl("^/|^[A-Za-z]:", nome) &&
       !any(partes %in% c("..", ""))
   }
-  
+
   interpretar_pdf_zip <- function(nome_zip, competencia) {
     partes <- strsplit(nome_zip, "/", fixed = TRUE)[[1]]
-    
+
     if (length(partes) >= 3 && partes[1] == competencia) {
       partes <- partes[-1]
     }
-    
+
     if (length(partes) < 2) {
       return(NULL)
     }
-    
+
     list(
       cliente = limpar_segmento_caminho(partes[1]),
       arquivo = limpar_segmento_caminho(tail(partes, 1)),
@@ -753,17 +762,17 @@ server <- function(input, output, session) {
         dplyr::filter(
           grepl("\\.pdf$", .data$nome_zip, ignore.case = TRUE)
         )
-      
+
       pdfs_validos <- purrr::map(
         pdfs_zip$nome_zip,
         interpretar_pdf_zip,
         competencia = competencia
       )
-      
+
       manter <- purrr::map_lgl(pdfs_validos, ~ !is.null(.x))
       pdfs_zip <- pdfs_zip[manter, ]
       pdfs_validos <- pdfs_validos[manter]
-      
+
       if (nrow(pdfs_zip) == 0) {
         stop("ZIP deve conter PDFs em Cliente/arquivo.pdf ou Competência/Cliente/arquivo.pdf.")
       }
@@ -778,14 +787,14 @@ server <- function(input, output, session) {
         item_zip <- pdfs_validos[[i]]
         cliente <- item_zip$cliente
         arquivo <- item_zip$arquivo
-        
+
         origem <- do.call(file.path, as.list(c(tmp, item_zip$partes)))
-        
+
         if (!file_exists(origem)) {
           partes_com_raiz <- strsplit(pdfs_zip$nome_zip[i], "/", fixed = TRUE)[[1]]
           origem <- do.call(file.path, as.list(c(tmp, partes_com_raiz)))
         }
-        
+
         destino_dir <- caminho_cliente_pdf(
           input$pdf_empresa,
           competencia,
@@ -987,8 +996,16 @@ server <- function(input, output, session) {
   })
 
   output$tabela_clientes <- DT::renderDT({
+    dados_tabela <- dados_clientes()
+
+    if ("telefone_whatsapp" %in% names(dados_tabela)) {
+      dados_tabela$telefone_whatsapp <- formatar_telefone_br(
+        dados_tabela$telefone_whatsapp
+      )
+    }
+
     datatable_padrao(
-      dados_clientes(),
+      dados_tabela,
       page_length = 15,
       colnames = c(
         "Cliente",
@@ -1807,7 +1824,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
     tryCatch({
 
-      telefone <- gsub("[^0-9]", "", input$cw_teste_telefone)
+      telefone <- normalizar_telefone_br(input$cw_teste_telefone)
 
       if (nchar(telefone) < 10) {
         stop("Telefone inválido. Informe DDD + número.")
@@ -2039,8 +2056,14 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
   })
 
   output$whatsapp_logs_tabela <- DT::renderDT({
+    dados_tabela <- whatsapp_logs_filtrados()
+
+    if ("telefone" %in% names(dados_tabela)) {
+      dados_tabela$telefone <- formatar_telefone_br(dados_tabela$telefone)
+    }
+
     datatable_padrao(
-      whatsapp_logs_filtrados(),
+      dados_tabela,
       page_length = 15,
       colnames = c(
         "Data/Hora",
