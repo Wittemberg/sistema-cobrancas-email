@@ -40,6 +40,22 @@ Na mesma aba, a limpeza de competências antigas permite manter as últimas `X` 
 backups/pdfs/empresa/competencia.zip
 ```
 
+## Chatwoot e WhatsApp
+
+A aba `Chatwoot` cadastra a integração por empresa em `_config/chatwoot.csv` e permite testar o envio.
+
+Na aba `Clientes`, o botão `Enviar WhatsApp` envia uma mensagem para o cliente selecionado usando `telefone_whatsapp`.
+
+Nas abas `Disparo` e `Fila`, a opção `Enviar WhatsApp após e-mail` envia uma mensagem automática depois que o e-mail for enviado com sucesso.
+
+Os envios WhatsApp são registrados em:
+
+```text
+logs/whatsapp.csv
+```
+
+O Dashboard exibe KPIs de WhatsApp enviado e erro, e a aba `Logs` mostra o histórico WhatsApp.
+
 ## Deploy no Portainer
 
 1. Crie o registro DNS `cobrancas.wrtec.com.br` apontando para o servidor do Traefik.
