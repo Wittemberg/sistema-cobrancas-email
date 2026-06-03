@@ -30,6 +30,8 @@ server <- function(input, output, session) {
 
   mensagem_backup <- reactiveVal("Aguardando backup.")
   resultado_envio <- reactiveVal("Aguardando envio.")
+  disparo_processamento <- reactiveVal(NULL)
+  disparo_proximo_ciclo <- reactiveVal(Sys.time())
 
   session$userData$remetente_modo_novo <- FALSE
   session$userData$smtp_modo_novo <- FALSE
@@ -2319,6 +2321,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
   fila_msg <- reactiveVal("Aguardando geração da fila.")
   fila_refresh <- reactiveVal(0)
+  fila_processamento <- reactiveVal(NULL)
+  fila_proximo_ciclo <- reactiveVal(Sys.time())
 
   atualizar_fila <- function() {
     atualizar_contador(fila_refresh)
@@ -2381,6 +2385,11 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
   }, ignoreInit = FALSE)
 
   observeEvent(input$gerar_fila, {
+    if (!is.null(fila_processamento())) {
+      fila_msg("Aguarde o processamento atual terminar antes de gerar nova fila.")
+      return()
+    }
+
     req(input$fila_empresa)
     req(input$fila_competencia)
 
@@ -2429,6 +2438,11 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
   })
 
   observeEvent(input$limpar_fila, {
+    if (!is.null(fila_processamento())) {
+      fila_msg("Aguarde o processamento atual terminar antes de limpar a fila.")
+      return()
+    }
+
     criar_backup_seguro()
 
     if (file.exists(caminho_fila())) {
@@ -2440,6 +2454,11 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
   })
 
   observeEvent(input$processar_fila, {
+    if (!is.null(fila_processamento())) {
+      fila_msg("Processamento da fila ja esta em andamento.")
+      return()
+    }
+
     fila <- carregar_fila()
 
     if (nrow(fila) == 0) {
@@ -2458,6 +2477,18 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
     resultado <- c(paste0("Processando ", length(pendentes), " item(ns)."))
     fila_msg(paste(resultado, collapse = "\n"))
+
+    fila_processamento(list(
+      pendentes = pendentes,
+      posicao = 1,
+      resultado = resultado,
+      mes_email = input$fila_mes_email,
+      ano_email = input$fila_ano_email,
+      enviar_whatsapp = isTRUE(input$fila_enviar_whatsapp_pos_email),
+      whatsapp_intervalo_segundos = input$fila_whatsapp_intervalo_segundos
+    ))
+    fila_proximo_ciclo(Sys.time() + 0.5)
+    return()
 
     for (idx in seq_along(pendentes)) {
           i <- pendentes[idx]
@@ -2538,6 +2569,126 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     fila_msg(paste(resultado, collapse = "\n"))
   })
 
+  observe({
+    processamento <- fila_processamento()
+
+    if (is.null(processamento)) {
+      return()
+    }
+
+    invalidateLater(500, session)
+
+    if (Sys.time() < fila_proximo_ciclo()) {
+      return()
+    }
+
+    fila <- carregar_fila()
+
+    if (processamento$posicao > length(processamento$pendentes)) {
+      resultado <- c(processamento$resultado, "Processamento finalizado.")
+      fila_msg(paste(resultado, collapse = "\n"))
+      fila_processamento(NULL)
+      atualizar_fila()
+      return()
+    }
+
+    i <- processamento$pendentes[processamento$posicao]
+    item <- fila[i, ]
+    cliente <- NULL
+    resultado <- c(
+      processamento$resultado,
+      paste(
+        "Processando",
+        processamento$posicao,
+        "de",
+        length(processamento$pendentes),
+        "-",
+        item$cliente_nome
+      )
+    )
+    fila_msg(paste(resultado, collapse = "\n"))
+
+    tryCatch(
+      {
+        clientes <- ler_clientes_empresa(item$empresa)
+
+        cliente <- clientes |>
+          dplyr::filter(.data$cliente_nome == item$cliente_nome) |>
+          dplyr::slice(1)
+
+        if (nrow(cliente) == 0) {
+          stop("Cliente nao encontrado.")
+        }
+
+        fila$status[i] <- "processando"
+        salvar_fila(fila)
+        atualizar_fila()
+
+        enviar_email_cliente(
+          empresa = item$empresa,
+          cliente = cliente,
+          competencia = item$competencia,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          enviar_whatsapp = FALSE
+        )
+
+        enviar_whatsapp_apos_tentativa_email(
+          empresa = item$empresa,
+          cliente = cliente,
+          competencia = item$competencia,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
+          whatsapp_intervalo_segundos = 0,
+          email_status = "email_enviado"
+        )
+
+        fila$status[i] <- "enviado"
+        salvar_fila(fila)
+        atualizar_fila()
+
+        resultado <- c(resultado, paste("OK:", item$cliente_nome))
+      },
+      error = function(e) {
+        if (is.data.frame(cliente) && nrow(cliente) > 0) {
+          enviar_whatsapp_apos_tentativa_email(
+            empresa = item$empresa,
+            cliente = cliente,
+            competencia = item$competencia,
+            mes_email = processamento$mes_email,
+            ano_email = processamento$ano_email,
+            enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
+            whatsapp_intervalo_segundos = 0,
+            email_status = "email_falha"
+          )
+        }
+
+        fila$status[i] <- "erro"
+        salvar_fila(fila)
+        atualizar_fila()
+
+        resultado <<- c(
+          resultado,
+          paste("ERRO:", item$cliente_nome, "-", conditionMessage(e))
+        )
+      }
+    )
+
+    fila_msg(paste(resultado, collapse = "\n"))
+
+    processamento$posicao <- processamento$posicao + 1
+    processamento$resultado <- resultado
+    intervalo <- as.numeric(processamento$whatsapp_intervalo_segundos)
+
+    if (is.na(intervalo) || intervalo < 0) {
+      intervalo <- 0
+    }
+
+    fila_processamento(processamento)
+    fila_proximo_ciclo(Sys.time() + max(0.5, intervalo))
+  })
+
   output$fila_tabela <- DT::renderDT({
     fila_refresh()
 
@@ -2565,6 +2716,11 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
   # =========================================================
 
   observeEvent(input$enviar_todos, {
+    if (!is.null(disparo_processamento())) {
+      resultado_envio("Envio ja esta em andamento.")
+      return()
+    }
+
     if (!isTRUE(input$confirmar_envio)) {
       resultado_envio("Marque a confirmação antes de enviar.")
       return()
@@ -2582,6 +2738,20 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
     resultado <- c(paste0("Iniciando envio: ", nrow(clientes), " cliente(s)."))
     resultado_envio(paste(resultado, collapse = "\n"))
+
+    disparo_processamento(list(
+      clientes = clientes,
+      posicao = 1,
+      resultado = resultado,
+      empresa = input$empresa,
+      competencia = input$competencia,
+      mes_email = input$mes_email,
+      ano_email = input$ano_email,
+      enviar_whatsapp = isTRUE(input$enviar_whatsapp_pos_email),
+      whatsapp_intervalo_segundos = input$whatsapp_intervalo_segundos
+    ))
+    disparo_proximo_ciclo(Sys.time() + 0.5)
+    return()
 
     for (i in seq_len(nrow(clientes))) {
       cliente <- clientes[i, ]
@@ -2635,6 +2805,98 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     resultado <- c(resultado, "Envio finalizado.")
     resultado_envio(paste(resultado, collapse = "\n"))
     atualizar_disparo()
+  })
+
+  observe({
+    processamento <- disparo_processamento()
+
+    if (is.null(processamento)) {
+      return()
+    }
+
+    invalidateLater(500, session)
+
+    if (Sys.time() < disparo_proximo_ciclo()) {
+      return()
+    }
+
+    if (processamento$posicao > nrow(processamento$clientes)) {
+      resultado <- c(processamento$resultado, "Envio finalizado.")
+      resultado_envio(paste(resultado, collapse = "\n"))
+      disparo_processamento(NULL)
+      atualizar_disparo()
+      return()
+    }
+
+    cliente <- processamento$clientes[processamento$posicao, ]
+    resultado <- c(
+      processamento$resultado,
+      paste(
+        "Processando",
+        processamento$posicao,
+        "de",
+        nrow(processamento$clientes),
+        "-",
+        cliente$cliente_nome
+      )
+    )
+    resultado_envio(paste(resultado, collapse = "\n"))
+
+    tryCatch(
+      {
+        enviar_email_cliente(
+          empresa = processamento$empresa,
+          cliente = cliente,
+          competencia = processamento$competencia,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          enviar_whatsapp = FALSE
+        )
+
+        enviar_whatsapp_apos_tentativa_email(
+          empresa = processamento$empresa,
+          cliente = cliente,
+          competencia = processamento$competencia,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
+          whatsapp_intervalo_segundos = 0,
+          email_status = "email_enviado"
+        )
+
+        resultado <- c(resultado, paste("OK:", cliente$cliente_nome))
+      },
+      error = function(e) {
+        enviar_whatsapp_apos_tentativa_email(
+          empresa = processamento$empresa,
+          cliente = cliente,
+          competencia = processamento$competencia,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
+          whatsapp_intervalo_segundos = 0,
+          email_status = "email_falha"
+        )
+
+        resultado <<- c(
+          resultado,
+          paste("ERRO:", cliente$cliente_nome, "-", conditionMessage(e))
+        )
+      }
+    )
+
+    resultado_envio(paste(resultado, collapse = "\n"))
+
+    processamento$posicao <- processamento$posicao + 1
+    processamento$resultado <- resultado
+    intervalo <- as.numeric(processamento$whatsapp_intervalo_segundos)
+
+    if (is.na(intervalo) || intervalo < 0) {
+      intervalo <- 0
+    }
+
+    disparo_processamento(processamento)
+    disparo_proximo_ciclo(Sys.time() + max(0.5, intervalo))
   })
 
   output$resultado_envio <- renderText({
