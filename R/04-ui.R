@@ -194,6 +194,15 @@ ui_app <- fluidPage(
               value = FALSE
             ),
 
+            numericInput(
+              "whatsapp_intervalo_segundos",
+              "Intervalo WhatsApp (segundos)",
+              value = 10,
+              min = 0,
+              max = 300,
+              step = 1
+            ),
+
             actionButton("enviar_todos", "Enviar Todos", class = "btn-primary"),
 
             hr(),
@@ -283,6 +292,15 @@ ui_app <- fluidPage(
             br(),
             br(),
 
+            numericInput(
+              "fila_whatsapp_intervalo_segundos",
+              "Intervalo WhatsApp (segundos)",
+              value = 10,
+              min = 0,
+              max = 300,
+              step = 1
+            ),
+
             actionButton(
               "limpar_fila",
               "Limpar Fila"
@@ -362,7 +380,7 @@ ui_app <- fluidPage(
             textAreaInput(
               "cliente_whatsapp_msg",
               "Mensagem WhatsApp",
-              value = "Olá, {{cliente_nome}}. Entramos em contato pela WR Tecnologia.",
+              value = "Olá, {{cliente_nome}}. Entramos em contato pela {{empresa_nome}}.",
               rows = 4
             ),
 

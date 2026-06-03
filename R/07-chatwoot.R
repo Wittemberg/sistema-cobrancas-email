@@ -68,6 +68,35 @@ carregar_chatwoot_empresa <- function(empresa) {
     dplyr::slice(1)
 }
 
+carregar_nome_empresa <- function(empresa) {
+  caminho <- file.path(pasta_raiz, "_config", "remetentes.csv")
+
+  if (!file.exists(caminho)) {
+    return(as.character(empresa))
+  }
+
+  remetentes <- readr::read_csv(
+    caminho,
+    show_col_types = FALSE,
+    col_types = readr::cols(.default = "c")
+  )
+
+  remetente <- remetentes |>
+    dplyr::filter(.data$empresa_id == empresa) |>
+    dplyr::slice(1)
+
+  if (
+    nrow(remetente) == 0 ||
+      !"empresa_nome" %in% names(remetente) ||
+      is.na(remetente$empresa_nome[1]) ||
+      remetente$empresa_nome[1] == ""
+  ) {
+    return(as.character(empresa))
+  }
+
+  as.character(remetente$empresa_nome[1])
+}
+
 normalizar_telefone_whatsapp <- function(telefone) {
   telefone <- gsub("[^0-9]", "", as.character(telefone))
 
@@ -90,9 +119,12 @@ substituir_variaveis_whatsapp <- function(
     mes_email = "",
     ano_email = ""
 ) {
+  empresa_nome <- carregar_nome_empresa(empresa)
+
   texto |>
     gsub("{{cliente_nome}}", as.character(cliente$cliente_nome), x = _, fixed = TRUE) |>
     gsub("{{empresa_id}}", as.character(empresa), x = _, fixed = TRUE) |>
+    gsub("{{empresa_nome}}", empresa_nome, x = _, fixed = TRUE) |>
     gsub("{{competencia_pdfs}}", as.character(competencia), x = _, fixed = TRUE) |>
     gsub("{{mes_referencia}}", as.character(mes_email), x = _, fixed = TRUE) |>
     gsub("{{ano_referencia}}", as.character(ano_email), x = _, fixed = TRUE)
@@ -102,7 +134,7 @@ mensagem_whatsapp_padrao <- function(empresa, cliente, competencia, mes_email, a
   substituir_variaveis_whatsapp(
     paste(
       "Olá, {{cliente_nome}}.",
-      "Enviamos por e-mail os documentos referentes à competência {{competencia_pdfs}}.",
+      "{{empresa_nome}} enviou por e-mail os documentos referentes à competência {{competencia_pdfs}}.",
       "Qualquer dúvida, estamos à disposição."
     ),
     empresa = empresa,

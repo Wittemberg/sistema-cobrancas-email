@@ -2334,7 +2334,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
                 competencia = item$competencia,
                 mes_email = input$fila_mes_email,
                 ano_email = input$fila_ano_email,
-                enviar_whatsapp = isTRUE(input$fila_enviar_whatsapp_pos_email)
+                enviar_whatsapp = isTRUE(input$fila_enviar_whatsapp_pos_email),
+                whatsapp_intervalo_segundos = input$fila_whatsapp_intervalo_segundos
               )
 
               fila$status[i] <- "enviado"
@@ -2420,7 +2421,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
             competencia = input$competencia,
             mes_email = input$mes_email,
             ano_email = input$ano_email,
-            enviar_whatsapp = isTRUE(input$enviar_whatsapp_pos_email)
+            enviar_whatsapp = isTRUE(input$enviar_whatsapp_pos_email),
+            whatsapp_intervalo_segundos = input$whatsapp_intervalo_segundos
           )
 
           resultado <- c(resultado, paste("OK:", cliente$cliente_nome))

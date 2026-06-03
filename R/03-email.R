@@ -8,7 +8,8 @@ enviar_email_cliente <- function(
     competencia,
     mes_email,
     ano_email,
-    enviar_whatsapp = FALSE
+    enviar_whatsapp = FALSE,
+    whatsapp_intervalo_segundos = 0
 ) {
   substituir_variaveis_email <- function(texto) {
     texto |>
@@ -149,6 +150,12 @@ enviar_email_cliente <- function(
         message("WhatsApp não enviado: ", conditionMessage(e))
       }
     )
+
+    intervalo <- as.numeric(whatsapp_intervalo_segundos)
+
+    if (!is.na(intervalo) && intervalo > 0) {
+      Sys.sleep(intervalo)
+    }
   }
 
   TRUE
