@@ -12,6 +12,15 @@ ui_app <- fluidPage(
       .navbar {
         background: linear-gradient(90deg, #1f1f1f, #3a3a3a);
         border-bottom: 4px solid #d40000;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        width: 100%;
+      }
+
+      .navbar-collapse {
+        max-height: calc(100vh - 56px);
+        overflow-y: auto;
       }
 
       .navbar-brand {
