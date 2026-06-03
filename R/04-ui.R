@@ -369,6 +369,28 @@ ui_app <- fluidPage(
               "Importar ZIP"
             ),
             
+            hr(),
+            
+            numericInput(
+              "pdf_reter_meses",
+              "Manter últimas competências",
+              value = 3,
+              min = 1,
+              max = 24,
+              step = 1
+            ),
+            
+            checkboxInput(
+              "pdf_confirmar_limpeza",
+              "Confirmo compactar e remover competências antigas",
+              value = FALSE
+            ),
+            
+            actionButton(
+              "limpar_competencias_pdfs",
+              "Compactar e Remover Antigas"
+            ),
+            
             br(), br(),
             
             verbatimTextOutput("pdf_msg")

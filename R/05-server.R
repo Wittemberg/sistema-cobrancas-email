@@ -434,6 +434,75 @@ server <- function(input, output, session) {
     )
   }
   
+  validar_pasta_competencia_para_remocao <- function(empresa, competencia) {
+    pasta_clientes <- normalizePath(
+      file.path(pasta_raiz, empresa, "clientes"),
+      winslash = "/",
+      mustWork = TRUE
+    )
+    
+    pasta_competencia <- normalizePath(
+      caminho_competencia_pdf(empresa, competencia),
+      winslash = "/",
+      mustWork = TRUE
+    )
+    
+    if (!startsWith(pasta_competencia, paste0(pasta_clientes, "/"))) {
+      stop("Caminho da competência inválido para remoção.")
+    }
+    
+    pasta_competencia
+  }
+  
+  criar_backup_competencia_pdf <- function(empresa, competencia) {
+    pasta_competencia <- validar_pasta_competencia_para_remocao(
+      empresa,
+      competencia
+    )
+    
+    destino_dir <- file.path(
+      pasta_raiz,
+      "backups",
+      "pdfs",
+      empresa
+    )
+    
+    dir_create(destino_dir, recurse = TRUE)
+    
+    destino_zip <- file.path(
+      destino_dir,
+      paste0(competencia, ".zip")
+    )
+    
+    if (file_exists(destino_zip)) {
+      destino_zip <- file.path(
+        destino_dir,
+        paste0(
+          competencia,
+          "-",
+          format(Sys.time(), "%Y%m%d-%H%M%S"),
+          ".zip"
+        )
+      )
+    }
+    
+    wd_anterior <- getwd()
+    on.exit(setwd(wd_anterior), add = TRUE)
+    setwd(dirname(pasta_competencia))
+    
+    status_zip <- utils::zip(
+      zipfile = destino_zip,
+      files = basename(pasta_competencia),
+      flags = "-r"
+    )
+    
+    if (!file_exists(destino_zip) || !identical(status_zip, 0L)) {
+      stop(paste("Backup ZIP não criado para:", competencia))
+    }
+    
+    destino_zip
+  }
+  
   output$ui_pdf_cliente <- renderUI({
     req(input$pdf_empresa)
     
@@ -650,6 +719,88 @@ server <- function(input, output, session) {
     },
     error = function(e) {
       pdf_msg(paste("Erro ao importar ZIP:", conditionMessage(e)))
+    })
+  })
+  
+  observeEvent(input$limpar_competencias_pdfs, {
+    req(input$pdf_empresa)
+    
+    if (!isTRUE(input$pdf_confirmar_limpeza)) {
+      pdf_msg("Marque a confirmação antes de remover competências antigas.")
+      return()
+    }
+    
+    tryCatch({
+      reter <- as.integer(input$pdf_reter_meses)
+      
+      if (is.na(reter) || reter < 1) {
+        stop("Informe pelo menos 1 competência para manter.")
+      }
+      
+      competencias <- buscar_competencias(input$pdf_empresa)
+      competencias <- competencias[grepl("^\\d{4}-\\d{2}$", competencias)]
+      competencias <- sort(competencias, decreasing = TRUE)
+      
+      if (length(competencias) <= reter) {
+        pdf_msg(
+          paste0(
+            "Nada a remover. Empresa possui ",
+            length(competencias),
+            " competência(s) e a regra mantém ",
+            reter,
+            "."
+          )
+        )
+        return()
+      }
+      
+      remover <- competencias[(reter + 1):length(competencias)]
+      resultado <- c(
+        paste0(
+          "Mantendo: ",
+          paste(competencias[seq_len(reter)], collapse = ", ")
+        )
+      )
+      
+      for (competencia in remover) {
+        zip_backup <- criar_backup_competencia_pdf(
+          input$pdf_empresa,
+          competencia
+        )
+        
+        pasta_competencia <- validar_pasta_competencia_para_remocao(
+          input$pdf_empresa,
+          competencia
+        )
+        
+        unlink(
+          pasta_competencia,
+          recursive = TRUE,
+          force = TRUE
+        )
+        
+        if (dir_exists(pasta_competencia)) {
+          stop(paste("Não foi possível remover:", competencia))
+        }
+        
+        resultado <- c(
+          resultado,
+          paste0(
+            "Removida ",
+            competencia,
+            " com backup em ",
+            zip_backup
+          )
+        )
+      }
+      
+      atualizar_pdfs()
+      updateCheckboxInput(session, "pdf_confirmar_limpeza", value = FALSE)
+      
+      pdf_msg(paste(resultado, collapse = "\n"))
+    },
+    error = function(e) {
+      pdf_msg(paste("Erro ao limpar competências:", conditionMessage(e)))
     })
   })
   

@@ -13,6 +13,7 @@ RUN apt-get update \
         libssl-dev \
         libxml2-dev \
         pandoc \
+        zip \
         zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 

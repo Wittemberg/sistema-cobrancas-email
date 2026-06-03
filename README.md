@@ -34,6 +34,12 @@ Os PDFs podem ser enviados de duas formas:
 
 Os arquivos são gravados em `empresa/clientes/competencia/cliente`, que é a estrutura usada pelas telas `Disparo` e `Fila`.
 
+Na mesma aba, a limpeza de competências antigas permite manter as últimas `X` competências. Antes de remover cada pasta antiga, o sistema cria um ZIP individual em:
+
+```text
+backups/pdfs/empresa/competencia.zip
+```
+
 ## Deploy no Portainer
 
 1. Crie o registro DNS `cobrancas.wrtec.com.br` apontando para o servidor do Traefik.

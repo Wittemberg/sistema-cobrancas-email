@@ -19,7 +19,7 @@ library(fs)
 
 library(blastula)
 
-options(shiny.maxRequestSize = 100 * 1024^2)
+options(shiny.maxRequestSize = 500 * 1024^2)
 
 pasta_raiz <- getwd()
 
