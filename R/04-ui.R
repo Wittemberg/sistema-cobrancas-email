@@ -719,6 +719,21 @@ ui_app <- fluidPage(
             passwordInput("cw_token", "API Access Token"),
 
             checkboxInput("cw_ativo", "Ativo", value = TRUE),
+            checkboxInput("cw_enviar_pdfs", "Enviar PDFs pelo WhatsApp", value = FALSE),
+
+            textAreaInput(
+              "cw_msg_email_enviado",
+              "Mensagem quando o e-mail for enviado",
+              value = "Olá, {{cliente_nome}}. {{empresa_nome}} enviou por e-mail os documentos referentes à competência {{competencia_pdfs}}. Qualquer dúvida, estamos à disposição.",
+              rows = 4
+            ),
+
+            textAreaInput(
+              "cw_msg_email_falha",
+              "Mensagem quando o e-mail falhar",
+              value = "Olá, {{cliente_nome}}. {{empresa_nome}} está entrando em contato sobre os documentos referentes à competência {{competencia_pdfs}}. Qualquer dúvida, estamos à disposição.",
+              rows = 4
+            ),
 
             textAreaInput(
               "cw_observacao",

@@ -1656,11 +1656,90 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     file.path(pasta_raiz, "_config", "chatwoot.csv")
   }
 
+  mensagem_whatsapp_email_enviado_padrao <- function() {
+    paste(
+      "Olá, {{cliente_nome}}.",
+      "{{empresa_nome}} enviou por e-mail os documentos referentes à competência {{competencia_pdfs}}.",
+      "Qualquer dúvida, estamos à disposição."
+    )
+  }
+
+  mensagem_whatsapp_email_falha_padrao <- function() {
+    paste(
+      "Olá, {{cliente_nome}}.",
+      "{{empresa_nome}} está entrando em contato sobre os documentos referentes à competência {{competencia_pdfs}}.",
+      "Qualquer dúvida, estamos à disposição."
+    )
+  }
+
+  normalizar_colunas_chatwoot <- function(dados) {
+    colunas_texto <- c(
+      "chatwoot_id",
+      "empresa_id",
+      "base_url",
+      "account_id",
+      "inbox_identifier",
+      "api_access_token",
+      "observacao"
+    )
+
+    for (coluna in colunas_texto) {
+      if (!coluna %in% names(dados)) {
+        dados[[coluna]] <- character(nrow(dados))
+      }
+    }
+
+    if (!"ativo" %in% names(dados)) {
+      dados$ativo <- TRUE
+    }
+
+    if (!"enviar_pdfs_whatsapp" %in% names(dados)) {
+      dados$enviar_pdfs_whatsapp <- FALSE
+    }
+
+    if (!"mensagem_email_enviado" %in% names(dados)) {
+      dados$mensagem_email_enviado <- mensagem_whatsapp_email_enviado_padrao()
+    }
+
+    if (!"mensagem_email_falha" %in% names(dados)) {
+      dados$mensagem_email_falha <- mensagem_whatsapp_email_falha_padrao()
+    }
+
+    dados |>
+      dplyr::mutate(
+        ativo = as.logical(.data$ativo),
+        enviar_pdfs_whatsapp = as.logical(.data$enviar_pdfs_whatsapp),
+        mensagem_email_enviado = dplyr::if_else(
+          is.na(.data$mensagem_email_enviado) | .data$mensagem_email_enviado == "",
+          mensagem_whatsapp_email_enviado_padrao(),
+          .data$mensagem_email_enviado
+        ),
+        mensagem_email_falha = dplyr::if_else(
+          is.na(.data$mensagem_email_falha) | .data$mensagem_email_falha == "",
+          mensagem_whatsapp_email_falha_padrao(),
+          .data$mensagem_email_falha
+        )
+      ) |>
+      dplyr::select(
+        chatwoot_id,
+        empresa_id,
+        base_url,
+        account_id,
+        inbox_identifier,
+        api_access_token,
+        ativo,
+        enviar_pdfs_whatsapp,
+        mensagem_email_enviado,
+        mensagem_email_falha,
+        observacao
+      )
+  }
+
   carregar_chatwoot <- function() {
     caminho <- caminho_chatwoot()
 
     if (!file.exists(caminho)) {
-      return(
+      return(normalizar_colunas_chatwoot(
         tibble::tibble(
           chatwoot_id = character(),
           empresa_id = character(),
@@ -1669,19 +1748,21 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           inbox_identifier = character(),
           api_access_token = character(),
           ativo = logical(),
+          enviar_pdfs_whatsapp = logical(),
+          mensagem_email_enviado = character(),
+          mensagem_email_falha = character(),
           observacao = character()
         )
-      )
+      ))
     }
 
-    readr::read_csv(
+    dados <- readr::read_csv(
       caminho,
       show_col_types = FALSE,
       col_types = readr::cols(.default = "c")
-    ) |>
-      dplyr::mutate(
-        ativo = as.logical(.data$ativo)
-      )
+    )
+
+    normalizar_colunas_chatwoot(dados)
   }
 
   salvar_chatwoot <- function(dados) {
@@ -1714,6 +1795,9 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         "Inbox Identifier",
         "Token",
         "Ativo",
+        "Enviar PDFs",
+        "Mensagem Email Enviado",
+        "Mensagem Email Falha",
         "Observação"
       )
     )
@@ -1734,6 +1818,9 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     updateTextInput(session, "cw_inbox_identifier", value = item$inbox_identifier)
     updateTextInput(session, "cw_token", value = item$api_access_token)
     updateCheckboxInput(session, "cw_ativo", value = as.logical(item$ativo))
+    updateCheckboxInput(session, "cw_enviar_pdfs", value = as.logical(item$enviar_pdfs_whatsapp))
+    updateTextAreaInput(session, "cw_msg_email_enviado", value = item$mensagem_email_enviado)
+    updateTextAreaInput(session, "cw_msg_email_falha", value = item$mensagem_email_falha)
     updateTextAreaInput(session, "cw_observacao", value = item$observacao)
 
     cw_msg(paste("Configuração carregada:", item$chatwoot_id))
@@ -1755,6 +1842,9 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     updateTextInput(session, "cw_inbox_identifier", value = "")
     updateTextInput(session, "cw_token", value = "")
     updateCheckboxInput(session, "cw_ativo", value = TRUE)
+    updateCheckboxInput(session, "cw_enviar_pdfs", value = FALSE)
+    updateTextAreaInput(session, "cw_msg_email_enviado", value = mensagem_whatsapp_email_enviado_padrao())
+    updateTextAreaInput(session, "cw_msg_email_falha", value = mensagem_whatsapp_email_falha_padrao())
     updateTextAreaInput(session, "cw_observacao", value = "")
 
     cw_msg("Nova configuração.")
@@ -1776,6 +1866,9 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       inbox_identifier = as.character(input$cw_inbox_identifier),
       api_access_token = as.character(input$cw_token),
       ativo = as.logical(input$cw_ativo),
+      enviar_pdfs_whatsapp = as.logical(input$cw_enviar_pdfs),
+      mensagem_email_enviado = as.character(input$cw_msg_email_enviado),
+      mensagem_email_falha = as.character(input$cw_msg_email_falha),
       observacao = as.character(input$cw_observacao)
     )
 
