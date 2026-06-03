@@ -269,6 +269,21 @@ ui_app <- fluidPage(
 
             hr(),
 
+            numericInput(
+              "fila_whatsapp_intervalo_segundos",
+              "Intervalo WhatsApp (segundos)",
+              value = 10,
+              min = 0,
+              max = 300,
+              step = 1
+            ),
+
+            checkboxInput(
+              "fila_enviar_whatsapp_pos_email",
+              "Enviar WhatsApp após e-mail",
+              value = FALSE
+            ),
+
             actionButton(
               "gerar_fila",
               "Gerar Fila",
@@ -283,23 +298,8 @@ ui_app <- fluidPage(
               "Processar Fila"
             ),
 
-            checkboxInput(
-              "fila_enviar_whatsapp_pos_email",
-              "Enviar WhatsApp após e-mail",
-              value = FALSE
-            ),
-
             br(),
             br(),
-
-            numericInput(
-              "fila_whatsapp_intervalo_segundos",
-              "Intervalo WhatsApp (segundos)",
-              value = 10,
-              min = 0,
-              max = 300,
-              step = 1
-            ),
 
             actionButton(
               "limpar_fila",

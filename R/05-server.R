@@ -48,6 +48,59 @@ server <- function(input, output, session) {
     )
   }
 
+  referencia_email_por_competencia <- function(competencia) {
+    competencia <- trimws(as.character(competencia))
+
+    if (!grepl("^\\d{4}-\\d{2}$", competencia)) {
+      return(NULL)
+    }
+
+    ano <- as.integer(substr(competencia, 1, 4))
+    mes <- as.integer(substr(competencia, 6, 7))
+
+    if (is.na(ano) || is.na(mes) || mes < 1 || mes > 12) {
+      return(NULL)
+    }
+
+    mes <- mes - 1
+
+    if (mes == 0) {
+      mes <- 12
+      ano <- ano - 1
+    }
+
+    nomes_meses <- c(
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro"
+    )
+
+    list(
+      mes = nomes_meses[mes],
+      ano = ano
+    )
+  }
+
+  atualizar_referencia_email <- function(competencia, input_mes, input_ano) {
+    referencia <- referencia_email_por_competencia(competencia)
+
+    if (is.null(referencia)) {
+      return()
+    }
+
+    updateTextInput(session, input_mes, value = referencia$mes)
+    updateNumericInput(session, input_ano, value = referencia$ano)
+  }
+
   datatable_padrao <- function(dados, ..., page_length = 10, scroll_x = TRUE) {
     DT::datatable(
       dados,
@@ -966,6 +1019,14 @@ server <- function(input, output, session) {
       selected = if (length(competencias) > 0) competencias[1] else character(0)
     )
   })
+
+  observeEvent(input$competencia, {
+    atualizar_referencia_email(
+      competencia = input$competencia,
+      input_mes = "mes_email",
+      input_ano = "ano_email"
+    )
+  }, ignoreInit = FALSE)
 
   dados_clientes <- reactive({
     disparo_refresh()
@@ -2311,6 +2372,14 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     )
   })
 
+  observeEvent(input$fila_competencia, {
+    atualizar_referencia_email(
+      competencia = input$fila_competencia,
+      input_mes = "fila_mes_email",
+      input_ano = "fila_ano_email"
+    )
+  }, ignoreInit = FALSE)
+
   observeEvent(input$gerar_fila, {
     req(input$fila_empresa)
     req(input$fila_competencia)
@@ -2390,21 +2459,10 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     resultado <- c(paste0("Processando ", length(pendentes), " item(ns)."))
     fila_msg(paste(resultado, collapse = "\n"))
 
-    withProgress(
-      message = "Processando fila...",
-      value = 0,
-      {
-        total_itens <- length(pendentes)
-
-        for (idx in seq_along(pendentes)) {
+    for (idx in seq_along(pendentes)) {
           i <- pendentes[idx]
           item <- fila[i, ]
           cliente <- NULL
-
-          incProgress(
-            amount = 1 / total_itens,
-            detail = paste("Enviando para", item$cliente_nome)
-          )
 
           tryCatch(
             {
@@ -2475,8 +2533,6 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
           fila_msg(paste(resultado, collapse = "\n"))
         }
-      }
-    )
 
     resultado <- c(resultado, "Processamento finalizado.")
     fila_msg(paste(resultado, collapse = "\n"))
