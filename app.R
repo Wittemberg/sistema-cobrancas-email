@@ -8,4 +8,8 @@ source("R/06-auth.R")
 source("R/04-ui.R")
 source("R/05-server.R")
 
+message("APP_VERSION=", Sys.getenv("APP_VERSION", unset = "dev"))
+message("EMAIL_WORKER=", file.exists(file.path(pasta_raiz, "R", "08-email-worker.R")))
+message("PASTA_RAIZ=", pasta_raiz)
+
 shinyApp(ui = ui, server = server)
