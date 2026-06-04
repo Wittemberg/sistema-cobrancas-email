@@ -28,6 +28,7 @@ WORKDIR /srv/shiny-server
 RUN rm -rf /srv/shiny-server/*
 
 COPY app.R ./app.R
+COPY run-app.R ./run-app.R
 COPY R ./R
 COPY contexto.md ./contexto.md
 COPY awe ./awe
@@ -39,4 +40,4 @@ RUN mkdir -p _config logs backups \
 
 EXPOSE 3838
 
-CMD ["sh", "-c", "echo APP_VERSION=${APP_VERSION:-dev}; echo EMAIL_WORKER=$(test -f /srv/shiny-server/R/08-email-worker.R && echo TRUE || echo FALSE); R -e \"shiny::runApp('/srv/shiny-server', host = '0.0.0.0', port = 3838)\""]
+CMD ["sh", "-c", "echo APP_VERSION=${APP_VERSION:-dev}; echo EMAIL_WORKER=$(test -f /srv/shiny-server/R/08-email-worker.R && echo TRUE || echo FALSE); exec Rscript /srv/shiny-server/run-app.R"]
