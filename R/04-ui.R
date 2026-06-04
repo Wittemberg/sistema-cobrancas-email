@@ -522,6 +522,8 @@ ui_app <- fluidPage(
 
             tags$ul(
               tags$li("{{cliente_nome}}"),
+              tags$li("{{cliente_email}}"),
+              tags$li("{{email_principal}}"),
               tags$li("{{empresa_nome}}"),
               tags$li("{{mes_referencia}}"),
               tags$li("{{ano_referencia}}"),
@@ -780,6 +782,20 @@ ui_app <- fluidPage(
             ),
 
             br(), br(),
+
+            helpText("Chaves disponÃ­veis:"),
+
+            tags$ul(
+              tags$li("{{cliente_nome}}"),
+              tags$li("{{cliente_email}}"),
+              tags$li("{{email_principal}}"),
+              tags$li("{{empresa_nome}}"),
+              tags$li("{{mes_referencia}}"),
+              tags$li("{{ano_referencia}}"),
+              tags$li("{{competencia_pdfs}}")
+            ),
+
+            br(),
 
             verbatimTextOutput("cw_msg")
           )

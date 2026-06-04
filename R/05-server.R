@@ -1189,6 +1189,8 @@ server <- function(input, output, session) {
         gsub("{{corpo_email}}", corpo_preview, x = _, fixed = TRUE) |>
         gsub("{{empresa_nome}}", nome_empresa, x = _, fixed = TRUE) |>
         gsub("{{cliente_nome}}", "Cliente Exemplo LTDA", x = _, fixed = TRUE) |>
+        gsub("{{cliente_email}}", "cliente@exemplo.com", x = _, fixed = TRUE) |>
+        gsub("{{email_principal}}", "cliente@exemplo.com", x = _, fixed = TRUE) |>
         gsub("{{mes_referencia}}", "Abril", x = _, fixed = TRUE) |>
         gsub("{{ano_referencia}}", "2026", x = _, fixed = TRUE) |>
         gsub("{{competencia_pdfs}}", "2026-05", x = _, fixed = TRUE)
@@ -2198,6 +2200,9 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         )
 
         texto |>
+          gsub("{{cliente_nome}}", as.character(cliente$cliente_nome[1]), x = _, fixed = TRUE) |>
+          gsub("{{cliente_email}}", as.character(cliente$email_principal[1]), x = _, fixed = TRUE) |>
+          gsub("{{email_principal}}", as.character(cliente$email_principal[1]), x = _, fixed = TRUE) |>
           gsub("{{mes_atual}}", mes_email, x = _, fixed = TRUE) |>
           gsub("{{ano_atual}}", as.character(ano_email), x = _, fixed = TRUE) |>
           gsub("{{mes_referencia}}", mes_email, x = _, fixed = TRUE) |>

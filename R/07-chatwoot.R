@@ -139,9 +139,16 @@ substituir_variaveis_whatsapp <- function(
     ano_email = ""
 ) {
   empresa_nome <- carregar_nome_empresa(empresa)
+  cliente_email <- if ("email_principal" %in% names(cliente)) {
+    as.character(cliente$email_principal)
+  } else {
+    ""
+  }
 
   texto |>
     gsub("{{cliente_nome}}", as.character(cliente$cliente_nome), x = _, fixed = TRUE) |>
+    gsub("{{cliente_email}}", cliente_email, x = _, fixed = TRUE) |>
+    gsub("{{email_principal}}", cliente_email, x = _, fixed = TRUE) |>
     gsub("{{empresa_id}}", as.character(empresa), x = _, fixed = TRUE) |>
     gsub("{{empresa_nome}}", empresa_nome, x = _, fixed = TRUE) |>
     gsub("{{competencia_pdfs}}", as.character(competencia), x = _, fixed = TRUE) |>
