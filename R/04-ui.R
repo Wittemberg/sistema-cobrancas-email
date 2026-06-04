@@ -4,6 +4,11 @@
 
 ui_app <- fluidPage(
   tags$head(
+    tags$link(
+      rel = "icon",
+      type = "image/svg+xml",
+      href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231f1f1f'/%3E%3Cpath d='M8 10h8l5 30 7-30h8l7 30 5-30h8L47 54h-8l-7-29-7 29h-8L8 10z' fill='%23ffffff'/%3E%3Crect x='8' y='55' width='48' height='5' fill='%23d40000'/%3E%3C/svg%3E"
+    ),
     tags$style(HTML("
       body {
         background-color: #f5f5f5;
@@ -896,6 +901,11 @@ ui_app <- fluidPage(
 )
 ui_login <- fluidPage(
   tags$head(
+    tags$link(
+      rel = "icon",
+      type = "image/svg+xml",
+      href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231f1f1f'/%3E%3Cpath d='M8 10h8l5 30 7-30h8l7 30 5-30h8L47 54h-8l-7-29-7 29h-8L8 10z' fill='%23ffffff'/%3E%3Crect x='8' y='55' width='48' height='5' fill='%23d40000'/%3E%3C/svg%3E"
+    ),
     tags$style(HTML("
       body {
         background-color: #f5f5f5;
