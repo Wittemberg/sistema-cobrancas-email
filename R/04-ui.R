@@ -322,12 +322,12 @@ ui_app <- fluidPage(
 
             h3("Itens da Fila"),
 
-            selectInput(
+            checkboxGroupInput(
               "fila_status_filtro",
               "Status",
               choices = c("pendente", "processando", "erro", "enviado"),
               selected = c("pendente", "processando", "erro"),
-              multiple = TRUE
+              inline = TRUE
             ),
 
             DTOutput("fila_tabela")
@@ -526,7 +526,7 @@ ui_app <- fluidPage(
 
             hr(),
 
-            helpText("Chaves disponíveis:"),
+            tags$p(class = "help-block", HTML("Chaves dispon&iacute;veis:")),
 
             tags$ul(
               tags$li("{{cliente_nome}}"),
@@ -794,7 +794,7 @@ ui_app <- fluidPage(
 
             br(), br(),
 
-            helpText("Chaves disponÃ­veis:"),
+            tags$p(class = "help-block", HTML("Chaves dispon&iacute;veis:")),
 
             tags$ul(
               tags$li("{{cliente_nome}}"),
