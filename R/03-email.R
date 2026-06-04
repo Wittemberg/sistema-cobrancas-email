@@ -9,8 +9,21 @@ enviar_email_cliente <- function(
     mes_email,
     ano_email,
     enviar_whatsapp = FALSE,
-    whatsapp_intervalo_segundos = 0
+    whatsapp_intervalo_segundos = 0,
+    log_callback = NULL,
+    smtp_timeout_segundos = 120
 ) {
+  registrar_etapa_email <- function(etapa, detalhe = "") {
+    if (is.function(log_callback)) {
+      tryCatch(
+        log_callback(etapa, detalhe),
+        error = function(e) {
+          message("Log interno de email nao registrado: ", conditionMessage(e))
+        }
+      )
+    }
+  }
+
   substituir_variaveis_email <- function(texto) {
     texto |>
       gsub("{{mes_atual}}", mes_email, x = _, fixed = TRUE) |>
@@ -22,6 +35,8 @@ enviar_email_cliente <- function(
       gsub("{mes_referencia}", mes_email, x = _, fixed = TRUE) |>
       gsub("{ano_referencia}", as.character(ano_email), x = _, fixed = TRUE)
   }
+
+  registrar_etapa_email("carregando_configuracoes")
 
   remetentes <- readr::read_csv(
     file.path(pasta_raiz, "_config", "remetentes.csv"),
@@ -45,6 +60,8 @@ enviar_email_cliente <- function(
       .data$smtp_id == remetente$smtp_id
     ) |>
     dplyr::slice(1)
+
+  registrar_etapa_email("carregando_modelos")
 
   assunto <- readr::read_file(
     file.path(pasta_raiz, empresa, "modelos", "assunto.txt")
@@ -86,11 +103,15 @@ enviar_email_cliente <- function(
     )
   }
 
+  registrar_etapa_email("buscando_pdfs")
+
   verificacao <- buscar_pdfs_cliente(
     empresa,
     competencia,
     cliente$cliente_nome
   )
+
+  registrar_etapa_email("anexando_pdfs", paste("PDFs:", length(verificacao$arquivos_pdf)))
 
   for (arquivo_pdf in verificacao$arquivos_pdf) {
     email <- blastula::add_attachment(
@@ -112,6 +133,8 @@ enviar_email_cliente <- function(
     )
   )
 
+  registrar_etapa_email("preparando_credenciais")
+
   credenciais <- blastula::creds_envvar(
     user = as.character(smtp$usuario),
     pass_envvar = smtp_senha_env,
@@ -127,14 +150,33 @@ enviar_email_cliente <- function(
     copias <- NULL
   }
 
-  blastula::smtp_send(
-    email = email,
-    from = as.character(smtp$usuario),
-    to = destinatario,
-    cc = copias,
-    subject = as.character(assunto),
-    credentials = credenciais
+  registrar_etapa_email("smtp_send_inicio", paste("Para:", destinatario))
+
+  timeout <- as.numeric(smtp_timeout_segundos)
+
+  if (is.na(timeout) || timeout <= 0) {
+    timeout <- 120
+  }
+
+  setTimeLimit(elapsed = timeout, transient = TRUE)
+  on.exit(setTimeLimit(cpu = Inf, elapsed = Inf, transient = FALSE), add = TRUE)
+
+  tryCatch(
+    blastula::smtp_send(
+      email = email,
+      from = as.character(smtp$usuario),
+      to = destinatario,
+      cc = copias,
+      subject = as.character(assunto),
+      credentials = credenciais
+    ),
+    error = function(e) {
+      registrar_etapa_email("smtp_send_erro", conditionMessage(e))
+      stop(e)
+    }
   )
+
+  registrar_etapa_email("smtp_send_ok", paste("Para:", destinatario))
 
   return(TRUE)
 

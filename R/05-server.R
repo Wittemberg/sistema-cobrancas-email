@@ -2651,7 +2651,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       return()
     }
 
-    pendentes <- which(fila$status %in% c("pendente", "erro"))
+    pendentes <- which(fila$status %in% c("pendente", "erro", "processando"))
 
     if (length(pendentes) == 0) {
       fila_msg("Não existem itens pendentes.")
@@ -2883,7 +2883,29 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           competencia = item$competencia,
           mes_email = processamento$mes_email,
           ano_email = processamento$ano_email,
-          enviar_whatsapp = FALSE
+          enviar_whatsapp = FALSE,
+          log_callback = function(etapa, detalhe = "") {
+            registrar_log_processamento(
+              origem = "fila",
+              etapa = paste0("email_", etapa),
+              empresa = item$empresa,
+              competencia = item$competencia,
+              cliente_nome = item$cliente_nome,
+              posicao = processamento$posicao,
+              total = length(processamento$pendentes),
+              detalhe = detalhe
+            )
+          }
+        )
+
+        registrar_log_processamento(
+          origem = "fila",
+          etapa = "enviando_whatsapp",
+          empresa = item$empresa,
+          competencia = item$competencia,
+          cliente_nome = item$cliente_nome,
+          posicao = processamento$posicao,
+          total = length(processamento$pendentes)
         )
 
         enviar_whatsapp_apos_tentativa_email(
@@ -3354,7 +3376,29 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           competencia = processamento$competencia,
           mes_email = processamento$mes_email,
           ano_email = processamento$ano_email,
-          enviar_whatsapp = FALSE
+          enviar_whatsapp = FALSE,
+          log_callback = function(etapa, detalhe = "") {
+            registrar_log_processamento(
+              origem = "disparo",
+              etapa = paste0("email_", etapa),
+              empresa = processamento$empresa,
+              competencia = processamento$competencia,
+              cliente_nome = cliente$cliente_nome,
+              posicao = processamento$posicao,
+              total = nrow(processamento$clientes),
+              detalhe = detalhe
+            )
+          }
+        )
+
+        registrar_log_processamento(
+          origem = "disparo",
+          etapa = "enviando_whatsapp",
+          empresa = processamento$empresa,
+          competencia = processamento$competencia,
+          cliente_nome = cliente$cliente_nome,
+          posicao = processamento$posicao,
+          total = nrow(processamento$clientes)
         )
 
         enviar_whatsapp_apos_tentativa_email(
