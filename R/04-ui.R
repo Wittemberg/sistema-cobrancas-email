@@ -850,7 +850,13 @@ ui_app <- fluidPage(
 
             h3("Histórico WhatsApp"),
 
-            DTOutput("whatsapp_logs_tabela")
+            DTOutput("whatsapp_logs_tabela"),
+
+            br(),
+
+            h3("Histórico de Processamento"),
+
+            DTOutput("processamento_logs_tabela")
           )
         )
       )

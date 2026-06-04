@@ -2100,6 +2100,54 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
   logs_msg <- reactiveVal("Aguardando consulta.")
 
+  caminho_log_processamento <- function() {
+    file.path(pasta_raiz, "logs", "processamento.csv")
+  }
+
+  registrar_log_processamento <- function(
+      origem,
+      etapa,
+      empresa = "",
+      competencia = "",
+      cliente_nome = "",
+      posicao = "",
+      total = "",
+      detalhe = "",
+      erro = ""
+  ) {
+    tryCatch({
+      caminho <- caminho_log_processamento()
+      dir.create(dirname(caminho), recursive = TRUE, showWarnings = FALSE)
+
+      novo_log <- tibble::tibble(
+        data_hora = as.character(Sys.time()),
+        origem = as.character(origem),
+        etapa = as.character(etapa),
+        empresa = as.character(empresa),
+        competencia = as.character(competencia),
+        cliente_nome = as.character(cliente_nome),
+        posicao = as.character(posicao),
+        total = as.character(total),
+        detalhe = as.character(detalhe),
+        erro = as.character(erro)
+      )
+
+      logs <- if (file.exists(caminho)) {
+        readr::read_csv(
+          caminho,
+          show_col_types = FALSE,
+          col_types = readr::cols(.default = "c")
+        )
+      } else {
+        tibble::tibble()
+      }
+
+      readr::write_csv(dplyr::bind_rows(logs, novo_log), caminho)
+    }, error = function(e) {
+      message("Log de processamento nao registrado: ", conditionMessage(e))
+    })
+  }
+
   registrar_log_envio <- function(
       empresa,
       competencia,
@@ -2261,6 +2309,54 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     dados
   })
 
+  carregar_logs_processamento_dados <- function() {
+    caminho <- caminho_log_processamento()
+
+    if (!file.exists(caminho)) {
+      return(
+        tibble::tibble(
+          data_hora = character(),
+          origem = character(),
+          etapa = character(),
+          empresa = character(),
+          competencia = character(),
+          cliente_nome = character(),
+          posicao = character(),
+          total = character(),
+          detalhe = character(),
+          erro = character()
+        )
+      )
+    }
+
+    readr::read_csv(
+      caminho,
+      show_col_types = FALSE,
+      col_types = readr::cols(.default = "c")
+    )
+  }
+
+  processamento_logs_filtrados <- reactive({
+    input$atualizar_logs
+    dados <- carregar_logs_processamento_dados()
+
+    if (nrow(dados) == 0) {
+      return(dados)
+    }
+
+    if (!is.null(input$logs_empresa) && input$logs_empresa != "Todas") {
+      dados <- dados |>
+        dplyr::filter(.data$empresa == input$logs_empresa)
+    }
+
+    if (!is.null(input$logs_competencia) && trimws(input$logs_competencia) != "") {
+      dados <- dados |>
+        dplyr::filter(.data$competencia == input$logs_competencia)
+    }
+
+    dados
+  })
+
   output$logs_tabela <- DT::renderDT({
     datatable_padrao(
       logs_filtrados(),
@@ -2301,6 +2397,25 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         "Erro",
         "Origem",
         "Competência"
+      )
+    )
+  })
+
+  output$processamento_logs_tabela <- DT::renderDT({
+    datatable_padrao(
+      processamento_logs_filtrados(),
+      page_length = 15,
+      colnames = c(
+        "Data/Hora",
+        "Origem",
+        "Etapa",
+        "Empresa",
+        "Competência",
+        "Cliente",
+        "Posição",
+        "Total",
+        "Detalhe",
+        "Erro"
       )
     )
   })
@@ -2547,6 +2662,12 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
     resultado <- c(paste0("Processando ", length(pendentes), " item(ns)."))
     fila_msg(paste(resultado, collapse = "\n"))
+    registrar_log_processamento(
+      origem = "fila",
+      etapa = "iniciar",
+      detalhe = paste("Pendentes:", length(pendentes)),
+      total = length(pendentes)
+    )
 
     fila_processamento(list(
       pendentes = pendentes,
@@ -2557,6 +2678,12 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       enviar_whatsapp = isTRUE(input$fila_enviar_whatsapp_pos_email),
       whatsapp_intervalo_segundos = input$fila_whatsapp_intervalo_segundos
     ))
+    registrar_log_processamento(
+      origem = "fila",
+      etapa = "agendar_primeiro_item",
+      detalhe = "Agendamento inicial criado",
+      total = length(pendentes)
+    )
     agendar_proximo_item_fila(0.5)
     return()
 
@@ -2646,11 +2773,39 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       intervalo <- 0.5
     }
 
-    later::later(processar_proximo_item_fila, delay = intervalo)
+    processamento <- fila_processamento()
+    registrar_log_processamento(
+      origem = "fila",
+      etapa = "agendar_callback",
+      posicao = if (is.null(processamento)) "" else processamento$posicao,
+      total = if (is.null(processamento)) "" else length(processamento$pendentes),
+      detalhe = paste("Intervalo:", intervalo)
+    )
+
+    tryCatch(
+      later::later(processar_proximo_item_fila, delay = intervalo),
+      error = function(e) {
+        registrar_log_processamento(
+          origem = "fila",
+          etapa = "erro_agendamento",
+          erro = conditionMessage(e)
+        )
+        fila_msg(paste("Erro ao agendar proximo item da fila:", conditionMessage(e)))
+        fila_processamento(NULL)
+      }
+    )
   }
 
   processar_proximo_item_fila <- function() {
+    tryCatch({
     processamento <- fila_processamento()
+
+    registrar_log_processamento(
+      origem = "fila",
+      etapa = "callback_iniciado",
+      posicao = if (is.null(processamento)) "" else processamento$posicao,
+      total = if (is.null(processamento)) "" else length(processamento$pendentes)
+    )
 
     if (is.null(processamento)) {
       return()
@@ -2663,6 +2818,11 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       fila_msg(paste(resultado, collapse = "\n"))
       fila_processamento(NULL)
       atualizar_fila()
+      registrar_log_processamento(
+        origem = "fila",
+        etapa = "finalizado",
+        total = length(processamento$pendentes)
+      )
       return()
     }
 
@@ -2681,6 +2841,15 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       )
     )
     fila_msg(paste(resultado, collapse = "\n"))
+    registrar_log_processamento(
+      origem = "fila",
+      etapa = "processando_item",
+      empresa = item$empresa,
+      competencia = item$competencia,
+      cliente_nome = item$cliente_nome,
+      posicao = processamento$posicao,
+      total = length(processamento$pendentes)
+    )
 
     tryCatch(
       {
@@ -2693,6 +2862,16 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         if (nrow(cliente) == 0) {
           stop("Cliente nao encontrado.")
         }
+
+        registrar_log_processamento(
+          origem = "fila",
+          etapa = "enviando_email",
+          empresa = item$empresa,
+          competencia = item$competencia,
+          cliente_nome = item$cliente_nome,
+          posicao = processamento$posicao,
+          total = length(processamento$pendentes)
+        )
 
         fila$status[i] <- "processando"
         salvar_fila(fila)
@@ -2718,6 +2897,16 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           email_status = "email_enviado"
         )
 
+        registrar_log_processamento(
+          origem = "fila",
+          etapa = "email_whatsapp_ok",
+          empresa = item$empresa,
+          competencia = item$competencia,
+          cliente_nome = item$cliente_nome,
+          posicao = processamento$posicao,
+          total = length(processamento$pendentes)
+        )
+
         registrar_log_envio(
           empresa = item$empresa,
           competencia = item$competencia,
@@ -2734,6 +2923,17 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         resultado <- c(resultado, paste("OK:", item$cliente_nome))
       },
       error = function(e) {
+        registrar_log_processamento(
+          origem = "fila",
+          etapa = "erro_item",
+          empresa = item$empresa,
+          competencia = item$competencia,
+          cliente_nome = item$cliente_nome,
+          posicao = processamento$posicao,
+          total = length(processamento$pendentes),
+          erro = conditionMessage(e)
+        )
+
         if (is.data.frame(cliente) && nrow(cliente) > 0) {
           enviar_whatsapp_apos_tentativa_email(
             empresa = item$empresa,
@@ -2781,6 +2981,16 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     }
 
     agendar_proximo_item_fila(max(0.5, intervalo))
+    }, error = function(e) {
+      registrar_log_processamento(
+        origem = "fila",
+        etapa = "erro_callback",
+        erro = conditionMessage(e)
+      )
+      fila_msg(paste("Erro no processamento da fila:", conditionMessage(e)))
+      fila_processamento(NULL)
+      atualizar_fila()
+    })
   }
 
   observe({
@@ -2954,6 +3164,14 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
     resultado <- c(paste0("Iniciando envio: ", nrow(clientes), " cliente(s)."))
     resultado_envio(paste(resultado, collapse = "\n"))
+    registrar_log_processamento(
+      origem = "disparo",
+      etapa = "iniciar",
+      empresa = input$empresa,
+      competencia = input$competencia,
+      detalhe = paste("Clientes:", nrow(clientes)),
+      total = nrow(clientes)
+    )
 
     disparo_processamento(list(
       clientes = clientes,
@@ -2966,6 +3184,14 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       enviar_whatsapp = isTRUE(input$enviar_whatsapp_pos_email),
       whatsapp_intervalo_segundos = input$whatsapp_intervalo_segundos
     ))
+    registrar_log_processamento(
+      origem = "disparo",
+      etapa = "agendar_primeiro_item",
+      empresa = input$empresa,
+      competencia = input$competencia,
+      detalhe = "Agendamento inicial criado",
+      total = nrow(clientes)
+    )
     agendar_proximo_item_disparo(0.5)
     return()
 
@@ -3030,11 +3256,43 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       intervalo <- 0.5
     }
 
-    later::later(processar_proximo_item_disparo, delay = intervalo)
+    processamento <- disparo_processamento()
+    registrar_log_processamento(
+      origem = "disparo",
+      etapa = "agendar_callback",
+      empresa = if (is.null(processamento)) "" else processamento$empresa,
+      competencia = if (is.null(processamento)) "" else processamento$competencia,
+      posicao = if (is.null(processamento)) "" else processamento$posicao,
+      total = if (is.null(processamento)) "" else nrow(processamento$clientes),
+      detalhe = paste("Intervalo:", intervalo)
+    )
+
+    tryCatch(
+      later::later(processar_proximo_item_disparo, delay = intervalo),
+      error = function(e) {
+        registrar_log_processamento(
+          origem = "disparo",
+          etapa = "erro_agendamento",
+          erro = conditionMessage(e)
+        )
+        resultado_envio(paste("Erro ao agendar proximo item do disparo:", conditionMessage(e)))
+        disparo_processamento(NULL)
+      }
+    )
   }
 
   processar_proximo_item_disparo <- function() {
+    tryCatch({
     processamento <- disparo_processamento()
+
+    registrar_log_processamento(
+      origem = "disparo",
+      etapa = "callback_iniciado",
+      empresa = if (is.null(processamento)) "" else processamento$empresa,
+      competencia = if (is.null(processamento)) "" else processamento$competencia,
+      posicao = if (is.null(processamento)) "" else processamento$posicao,
+      total = if (is.null(processamento)) "" else nrow(processamento$clientes)
+    )
 
     if (is.null(processamento)) {
       return()
@@ -3045,6 +3303,13 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       resultado_envio(paste(resultado, collapse = "\n"))
       disparo_processamento(NULL)
       atualizar_disparo()
+      registrar_log_processamento(
+        origem = "disparo",
+        etapa = "finalizado",
+        empresa = processamento$empresa,
+        competencia = processamento$competencia,
+        total = nrow(processamento$clientes)
+      )
       return()
     }
 
@@ -3061,9 +3326,28 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       )
     )
     resultado_envio(paste(resultado, collapse = "\n"))
+    registrar_log_processamento(
+      origem = "disparo",
+      etapa = "processando_item",
+      empresa = processamento$empresa,
+      competencia = processamento$competencia,
+      cliente_nome = cliente$cliente_nome,
+      posicao = processamento$posicao,
+      total = nrow(processamento$clientes)
+    )
 
     tryCatch(
       {
+        registrar_log_processamento(
+          origem = "disparo",
+          etapa = "enviando_email",
+          empresa = processamento$empresa,
+          competencia = processamento$competencia,
+          cliente_nome = cliente$cliente_nome,
+          posicao = processamento$posicao,
+          total = nrow(processamento$clientes)
+        )
+
         enviar_email_cliente(
           empresa = processamento$empresa,
           cliente = cliente,
@@ -3084,6 +3368,16 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           email_status = "email_enviado"
         )
 
+        registrar_log_processamento(
+          origem = "disparo",
+          etapa = "email_whatsapp_ok",
+          empresa = processamento$empresa,
+          competencia = processamento$competencia,
+          cliente_nome = cliente$cliente_nome,
+          posicao = processamento$posicao,
+          total = nrow(processamento$clientes)
+        )
+
         registrar_log_envio(
           empresa = processamento$empresa,
           competencia = processamento$competencia,
@@ -3096,6 +3390,17 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         resultado <- c(resultado, paste("OK:", cliente$cliente_nome))
       },
       error = function(e) {
+        registrar_log_processamento(
+          origem = "disparo",
+          etapa = "erro_item",
+          empresa = processamento$empresa,
+          competencia = processamento$competencia,
+          cliente_nome = cliente$cliente_nome,
+          posicao = processamento$posicao,
+          total = nrow(processamento$clientes),
+          erro = conditionMessage(e)
+        )
+
         enviar_whatsapp_apos_tentativa_email(
           empresa = processamento$empresa,
           cliente = cliente,
@@ -3137,6 +3442,16 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     }
 
     agendar_proximo_item_disparo(max(0.5, intervalo))
+    }, error = function(e) {
+      registrar_log_processamento(
+        origem = "disparo",
+        etapa = "erro_callback",
+        erro = conditionMessage(e)
+      )
+      resultado_envio(paste("Erro no processamento do disparo:", conditionMessage(e)))
+      disparo_processamento(NULL)
+      atualizar_disparo()
+    })
   }
 
   observe({
