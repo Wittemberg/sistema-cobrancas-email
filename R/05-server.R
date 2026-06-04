@@ -37,7 +37,7 @@ server <- function(input, output, session) {
   session$userData$smtp_modo_novo <- FALSE
 
   atualizar_contador <- function(contador) {
-    contador(contador() + 1)
+    contador(isolate(contador()) + 1)
   }
 
   criar_backup_seguro <- function() {
