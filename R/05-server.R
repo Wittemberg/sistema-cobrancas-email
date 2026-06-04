@@ -2213,7 +2213,23 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       }
 
       readr::write_csv(dplyr::bind_rows(logs, novo_log), caminho)
+      registrar_log_processamento(
+        origem = "log_envio",
+        etapa = "log_envio_ok",
+        empresa = empresa,
+        competencia = competencia,
+        cliente_nome = cliente$cliente_nome[1],
+        detalhe = paste("Status:", status)
+      )
     }, error = function(e) {
+      registrar_log_processamento(
+        origem = "log_envio",
+        etapa = "log_envio_erro",
+        empresa = empresa,
+        competencia = competencia,
+        cliente_nome = if ("cliente_nome" %in% names(cliente)) cliente$cliente_nome[1] else "",
+        erro = conditionMessage(e)
+      )
       message("Log de envio nao registrado: ", conditionMessage(e))
     })
   }
@@ -2898,6 +2914,15 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           }
         )
 
+        registrar_log_envio(
+          empresa = item$empresa,
+          competencia = item$competencia,
+          cliente = cliente,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          status = "enviado"
+        )
+
         registrar_log_processamento(
           origem = "fila",
           etapa = "enviando_whatsapp",
@@ -2927,15 +2952,6 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           cliente_nome = item$cliente_nome,
           posicao = processamento$posicao,
           total = length(processamento$pendentes)
-        )
-
-        registrar_log_envio(
-          empresa = item$empresa,
-          competencia = item$competencia,
-          cliente = cliente,
-          mes_email = processamento$mes_email,
-          ano_email = processamento$ano_email,
-          status = "enviado"
         )
 
         fila$status[i] <- "enviado"
@@ -3391,6 +3407,15 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           }
         )
 
+        registrar_log_envio(
+          empresa = processamento$empresa,
+          competencia = processamento$competencia,
+          cliente = cliente,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          status = "enviado"
+        )
+
         registrar_log_processamento(
           origem = "disparo",
           etapa = "enviando_whatsapp",
@@ -3420,15 +3445,6 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           cliente_nome = cliente$cliente_nome,
           posicao = processamento$posicao,
           total = nrow(processamento$clientes)
-        )
-
-        registrar_log_envio(
-          empresa = processamento$empresa,
-          competencia = processamento$competencia,
-          cliente = cliente,
-          mes_email = processamento$mes_email,
-          ano_email = processamento$ano_email,
-          status = "enviado"
         )
 
         resultado <- c(resultado, paste("OK:", cliente$cliente_nome))

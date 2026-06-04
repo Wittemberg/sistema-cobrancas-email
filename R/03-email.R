@@ -2,6 +2,90 @@
 # FUNÇÕES DE EMAIL
 # =========================================================
 
+enviar_email_cliente_subprocesso <- function(
+    empresa,
+    cliente,
+    competencia,
+    mes_email,
+    ano_email,
+    log_callback = NULL,
+    smtp_timeout_segundos = 120
+) {
+  registrar_etapa <- function(etapa, detalhe = "") {
+    if (is.function(log_callback)) {
+      tryCatch(
+        log_callback(etapa, detalhe),
+        error = function(e) {
+          message("Log interno de email nao registrado: ", conditionMessage(e))
+        }
+      )
+    }
+  }
+
+  timeout <- as.numeric(smtp_timeout_segundos)
+
+  if (is.na(timeout) || timeout <= 0) {
+    timeout <- 120
+  }
+
+  worker <- file.path(pasta_raiz, "R", "08-email-worker.R")
+
+  if (!file.exists(worker)) {
+    stop("Worker de email nao encontrado: ", worker)
+  }
+
+  payload <- list(
+    empresa = as.character(empresa),
+    competencia = as.character(competencia),
+    mes_email = as.character(mes_email),
+    ano_email = as.character(ano_email),
+    cliente = as.list(cliente[1, , drop = FALSE])
+  )
+
+  payload_path <- tempfile("email-payload-", fileext = ".json")
+  jsonlite::write_json(payload, payload_path, auto_unbox = TRUE, null = "null")
+  on.exit(unlink(payload_path), add = TRUE)
+
+  registrar_etapa("smtp_subprocesso_inicio", paste("Timeout:", timeout))
+
+  resultado <- tryCatch(
+    system2(
+      "Rscript",
+      args = c(worker, payload_path),
+      stdout = TRUE,
+      stderr = TRUE,
+      timeout = timeout
+    ),
+    error = function(e) {
+      structure(
+        conditionMessage(e),
+        status = 1
+      )
+    }
+  )
+
+  status <- attr(resultado, "status")
+
+  if (is.null(status)) {
+    status <- 0
+  }
+
+  detalhe <- paste(as.character(resultado), collapse = "\n")
+
+  if (status == 0) {
+    registrar_etapa("smtp_subprocesso_ok", detalhe)
+    return(TRUE)
+  }
+
+  if (status == 124) {
+    registrar_etapa("smtp_subprocesso_timeout", detalhe)
+    stop("Timeout no envio SMTP apos ", timeout, " segundos.")
+  }
+
+  registrar_etapa("smtp_subprocesso_erro", detalhe)
+  stop("Erro no subprocesso de envio SMTP: ", detalhe)
+}
+
 enviar_email_cliente <- function(
     empresa,
     cliente,
@@ -11,7 +95,8 @@ enviar_email_cliente <- function(
     enviar_whatsapp = FALSE,
     whatsapp_intervalo_segundos = 0,
     log_callback = NULL,
-    smtp_timeout_segundos = 120
+    smtp_timeout_segundos = 120,
+    usar_subprocesso = TRUE
 ) {
   registrar_etapa_email <- function(etapa, detalhe = "") {
     if (is.function(log_callback)) {
@@ -22,6 +107,18 @@ enviar_email_cliente <- function(
         }
       )
     }
+  }
+
+  if (isTRUE(usar_subprocesso)) {
+    return(enviar_email_cliente_subprocesso(
+      empresa = empresa,
+      cliente = cliente,
+      competencia = competencia,
+      mes_email = mes_email,
+      ano_email = ano_email,
+      log_callback = log_callback,
+      smtp_timeout_segundos = smtp_timeout_segundos
+    ))
   }
 
   substituir_variaveis_email <- function(texto) {
