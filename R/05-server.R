@@ -2773,7 +2773,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       intervalo <- 0.5
     }
 
-    processamento <- fila_processamento()
+    processamento <- isolate(fila_processamento())
     registrar_log_processamento(
       origem = "fila",
       etapa = "agendar_callback",
@@ -2798,7 +2798,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
   processar_proximo_item_fila <- function() {
     tryCatch({
-    processamento <- fila_processamento()
+    processamento <- isolate(fila_processamento())
 
     registrar_log_processamento(
       origem = "fila",
@@ -2996,7 +2996,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
   observe({
     return()
 
-    processamento <- fila_processamento()
+    processamento <- isolate(fila_processamento())
 
     if (is.null(processamento)) {
       return()
@@ -3256,7 +3256,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       intervalo <- 0.5
     }
 
-    processamento <- disparo_processamento()
+    processamento <- isolate(disparo_processamento())
     registrar_log_processamento(
       origem = "disparo",
       etapa = "agendar_callback",
@@ -3283,7 +3283,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
   processar_proximo_item_disparo <- function() {
     tryCatch({
-    processamento <- disparo_processamento()
+    processamento <- isolate(disparo_processamento())
 
     registrar_log_processamento(
       origem = "disparo",
@@ -3457,7 +3457,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
   observe({
     return()
 
-    processamento <- disparo_processamento()
+    processamento <- isolate(disparo_processamento())
 
     if (is.null(processamento)) {
       return()
