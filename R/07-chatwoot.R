@@ -120,11 +120,17 @@ substituir_variaveis_whatsapp <- function(
   } else {
     ""
   }
+  cliente_whatsapp <- if ("telefone_whatsapp" %in% names(cliente)) {
+    formatar_telefone_br(cliente$telefone_whatsapp)
+  } else {
+    ""
+  }
 
   texto |>
     gsub("{{cliente_nome}}", as.character(cliente$cliente_nome), x = _, fixed = TRUE) |>
     gsub("{{cliente_email}}", cliente_email, x = _, fixed = TRUE) |>
     gsub("{{email_principal}}", cliente_email, x = _, fixed = TRUE) |>
+    gsub("{{cliente_whatsapp}}", cliente_whatsapp, x = _, fixed = TRUE) |>
     gsub("{{empresa_id}}", as.character(empresa), x = _, fixed = TRUE) |>
     gsub("{{empresa_nome}}", empresa_nome, x = _, fixed = TRUE) |>
     gsub("{{empresa_whatsapp}}", empresa_config$empresa_whatsapp, x = _, fixed = TRUE) |>
