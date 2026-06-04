@@ -2100,6 +2100,76 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
   logs_msg <- reactiveVal("Aguardando consulta.")
 
+  registrar_log_envio <- function(
+      empresa,
+      competencia,
+      cliente,
+      mes_email,
+      ano_email,
+      status,
+      erro = ""
+  ) {
+    tryCatch({
+      caminho <- file.path(pasta_raiz, "logs", "envios.csv")
+      dir.create(dirname(caminho), recursive = TRUE, showWarnings = FALSE)
+
+      total_pdfs <- if ("total_pdfs" %in% names(cliente)) {
+        as.integer(cliente$total_pdfs[1])
+      } else {
+        verificacao <- buscar_pdfs_cliente(
+          empresa,
+          competencia,
+          cliente$cliente_nome[1]
+        )
+        as.integer(verificacao$total_pdfs)
+      }
+
+      assunto <- tryCatch({
+        texto <- readr::read_file(
+          file.path(pasta_raiz, empresa, "modelos", "assunto.txt")
+        )
+
+        texto |>
+          gsub("{{mes_atual}}", mes_email, x = _, fixed = TRUE) |>
+          gsub("{{ano_atual}}", as.character(ano_email), x = _, fixed = TRUE) |>
+          gsub("{{mes_referencia}}", mes_email, x = _, fixed = TRUE) |>
+          gsub("{{ano_referencia}}", as.character(ano_email), x = _, fixed = TRUE) |>
+          gsub("{{competencia_pdfs}}", competencia, x = _, fixed = TRUE)
+      }, error = function(e) "")
+
+      novo_log <- tibble::tibble(
+        data_hora = as.character(Sys.time()),
+        empresa = as.character(empresa),
+        competencia_pdfs = as.character(competencia),
+        cliente_nome = as.character(cliente$cliente_nome[1]),
+        email_principal = as.character(cliente$email_principal[1]),
+        email_copias = if ("email_copias" %in% names(cliente)) {
+          as.character(cliente$email_copias[1])
+        } else {
+          ""
+        },
+        assunto = as.character(assunto),
+        total_pdfs = total_pdfs,
+        status = as.character(status),
+        erro = as.character(erro)
+      )
+
+      logs <- if (file.exists(caminho)) {
+        readr::read_csv(
+          caminho,
+          show_col_types = FALSE,
+          col_types = readr::cols(.default = "c")
+        )
+      } else {
+        tibble::tibble()
+      }
+
+      readr::write_csv(dplyr::bind_rows(logs, novo_log), caminho)
+    }, error = function(e) {
+      message("Log de envio nao registrado: ", conditionMessage(e))
+    })
+  }
+
   carregar_logs_dados <- function() {
     caminho <- file.path(pasta_raiz, "logs", "envios.csv")
 
@@ -2487,7 +2557,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       enviar_whatsapp = isTRUE(input$fila_enviar_whatsapp_pos_email),
       whatsapp_intervalo_segundos = input$fila_whatsapp_intervalo_segundos
     ))
-    fila_proximo_ciclo(Sys.time() + 0.5)
+    agendar_proximo_item_fila(0.5)
     return()
 
     for (idx in seq_along(pendentes)) {
@@ -2569,7 +2639,153 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     fila_msg(paste(resultado, collapse = "\n"))
   })
 
+  agendar_proximo_item_fila <- function(intervalo = 0.5) {
+    intervalo <- as.numeric(intervalo)
+
+    if (is.na(intervalo) || intervalo < 0.5) {
+      intervalo <- 0.5
+    }
+
+    later::later(processar_proximo_item_fila, delay = intervalo)
+  }
+
+  processar_proximo_item_fila <- function() {
+    processamento <- fila_processamento()
+
+    if (is.null(processamento)) {
+      return()
+    }
+
+    fila <- carregar_fila()
+
+    if (processamento$posicao > length(processamento$pendentes)) {
+      resultado <- c(processamento$resultado, "Processamento finalizado.")
+      fila_msg(paste(resultado, collapse = "\n"))
+      fila_processamento(NULL)
+      atualizar_fila()
+      return()
+    }
+
+    i <- processamento$pendentes[processamento$posicao]
+    item <- fila[i, ]
+    cliente <- NULL
+    resultado <- c(
+      processamento$resultado,
+      paste(
+        "Processando",
+        processamento$posicao,
+        "de",
+        length(processamento$pendentes),
+        "-",
+        item$cliente_nome
+      )
+    )
+    fila_msg(paste(resultado, collapse = "\n"))
+
+    tryCatch(
+      {
+        clientes <- ler_clientes_empresa(item$empresa)
+
+        cliente <- clientes |>
+          dplyr::filter(.data$cliente_nome == item$cliente_nome) |>
+          dplyr::slice(1)
+
+        if (nrow(cliente) == 0) {
+          stop("Cliente nao encontrado.")
+        }
+
+        fila$status[i] <- "processando"
+        salvar_fila(fila)
+        atualizar_fila()
+
+        enviar_email_cliente(
+          empresa = item$empresa,
+          cliente = cliente,
+          competencia = item$competencia,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          enviar_whatsapp = FALSE
+        )
+
+        enviar_whatsapp_apos_tentativa_email(
+          empresa = item$empresa,
+          cliente = cliente,
+          competencia = item$competencia,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
+          whatsapp_intervalo_segundos = 0,
+          email_status = "email_enviado"
+        )
+
+        registrar_log_envio(
+          empresa = item$empresa,
+          competencia = item$competencia,
+          cliente = cliente,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          status = "enviado"
+        )
+
+        fila$status[i] <- "enviado"
+        salvar_fila(fila)
+        atualizar_fila()
+
+        resultado <- c(resultado, paste("OK:", item$cliente_nome))
+      },
+      error = function(e) {
+        if (is.data.frame(cliente) && nrow(cliente) > 0) {
+          enviar_whatsapp_apos_tentativa_email(
+            empresa = item$empresa,
+            cliente = cliente,
+            competencia = item$competencia,
+            mes_email = processamento$mes_email,
+            ano_email = processamento$ano_email,
+            enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
+            whatsapp_intervalo_segundos = 0,
+            email_status = "email_falha"
+          )
+
+          registrar_log_envio(
+            empresa = item$empresa,
+            competencia = item$competencia,
+            cliente = cliente,
+            mes_email = processamento$mes_email,
+            ano_email = processamento$ano_email,
+            status = "erro",
+            erro = conditionMessage(e)
+          )
+        }
+
+        fila$status[i] <- "erro"
+        salvar_fila(fila)
+        atualizar_fila()
+
+        resultado <<- c(
+          resultado,
+          paste("ERRO:", item$cliente_nome, "-", conditionMessage(e))
+        )
+      }
+    )
+
+    fila_msg(paste(resultado, collapse = "\n"))
+
+    processamento$posicao <- processamento$posicao + 1
+    processamento$resultado <- resultado
+    fila_processamento(processamento)
+
+    intervalo <- as.numeric(processamento$whatsapp_intervalo_segundos)
+
+    if (is.na(intervalo) || intervalo < 0) {
+      intervalo <- 0
+    }
+
+    agendar_proximo_item_fila(max(0.5, intervalo))
+  }
+
   observe({
+    return()
+
     processamento <- fila_processamento()
 
     if (is.null(processamento)) {
@@ -2750,7 +2966,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       enviar_whatsapp = isTRUE(input$enviar_whatsapp_pos_email),
       whatsapp_intervalo_segundos = input$whatsapp_intervalo_segundos
     ))
-    disparo_proximo_ciclo(Sys.time() + 0.5)
+    agendar_proximo_item_disparo(0.5)
     return()
 
     for (i in seq_len(nrow(clientes))) {
@@ -2807,7 +3023,125 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     atualizar_disparo()
   })
 
+  agendar_proximo_item_disparo <- function(intervalo = 0.5) {
+    intervalo <- as.numeric(intervalo)
+
+    if (is.na(intervalo) || intervalo < 0.5) {
+      intervalo <- 0.5
+    }
+
+    later::later(processar_proximo_item_disparo, delay = intervalo)
+  }
+
+  processar_proximo_item_disparo <- function() {
+    processamento <- disparo_processamento()
+
+    if (is.null(processamento)) {
+      return()
+    }
+
+    if (processamento$posicao > nrow(processamento$clientes)) {
+      resultado <- c(processamento$resultado, "Envio finalizado.")
+      resultado_envio(paste(resultado, collapse = "\n"))
+      disparo_processamento(NULL)
+      atualizar_disparo()
+      return()
+    }
+
+    cliente <- processamento$clientes[processamento$posicao, ]
+    resultado <- c(
+      processamento$resultado,
+      paste(
+        "Processando",
+        processamento$posicao,
+        "de",
+        nrow(processamento$clientes),
+        "-",
+        cliente$cliente_nome
+      )
+    )
+    resultado_envio(paste(resultado, collapse = "\n"))
+
+    tryCatch(
+      {
+        enviar_email_cliente(
+          empresa = processamento$empresa,
+          cliente = cliente,
+          competencia = processamento$competencia,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          enviar_whatsapp = FALSE
+        )
+
+        enviar_whatsapp_apos_tentativa_email(
+          empresa = processamento$empresa,
+          cliente = cliente,
+          competencia = processamento$competencia,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
+          whatsapp_intervalo_segundos = 0,
+          email_status = "email_enviado"
+        )
+
+        registrar_log_envio(
+          empresa = processamento$empresa,
+          competencia = processamento$competencia,
+          cliente = cliente,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          status = "enviado"
+        )
+
+        resultado <- c(resultado, paste("OK:", cliente$cliente_nome))
+      },
+      error = function(e) {
+        enviar_whatsapp_apos_tentativa_email(
+          empresa = processamento$empresa,
+          cliente = cliente,
+          competencia = processamento$competencia,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
+          whatsapp_intervalo_segundos = 0,
+          email_status = "email_falha"
+        )
+
+        registrar_log_envio(
+          empresa = processamento$empresa,
+          competencia = processamento$competencia,
+          cliente = cliente,
+          mes_email = processamento$mes_email,
+          ano_email = processamento$ano_email,
+          status = "erro",
+          erro = conditionMessage(e)
+        )
+
+        resultado <<- c(
+          resultado,
+          paste("ERRO:", cliente$cliente_nome, "-", conditionMessage(e))
+        )
+      }
+    )
+
+    resultado_envio(paste(resultado, collapse = "\n"))
+
+    processamento$posicao <- processamento$posicao + 1
+    processamento$resultado <- resultado
+    disparo_processamento(processamento)
+
+    intervalo <- as.numeric(processamento$whatsapp_intervalo_segundos)
+
+    if (is.na(intervalo) || intervalo < 0) {
+      intervalo <- 0
+    }
+
+    agendar_proximo_item_disparo(max(0.5, intervalo))
+  }
+
   observe({
+    return()
+
     processamento <- disparo_processamento()
 
     if (is.null(processamento)) {
