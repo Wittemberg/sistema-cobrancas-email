@@ -1153,25 +1153,8 @@ server <- function(input, output, session) {
   observeEvent(input$visualizar_template, {
     req(input$modelos_empresa)
 
-    nome_empresa <- input$modelos_empresa
-    caminho_remetentes <- file.path(pasta_raiz, "_config", "remetentes.csv")
-
-    if (file.exists(caminho_remetentes)) {
-      remetentes <- readr::read_csv(caminho_remetentes, show_col_types = FALSE)
-
-      registro <- remetentes |>
-        dplyr::filter(.data$empresa_id == input$modelos_empresa) |>
-        dplyr::slice(1)
-
-      if (
-        nrow(registro) > 0 &&
-        "empresa_nome" %in% names(registro) &&
-        !is.na(registro$empresa_nome[1]) &&
-        registro$empresa_nome[1] != ""
-      ) {
-        nome_empresa <- registro$empresa_nome[1]
-      }
-    }
+    empresa_config <- carregar_dados_empresa_config(input$modelos_empresa)
+    nome_empresa <- empresa_config$empresa_nome
 
     template_path <- file.path(
       pasta_raiz,
@@ -1188,6 +1171,7 @@ server <- function(input, output, session) {
       preview_html <- template_html |>
         gsub("{{corpo_email}}", corpo_preview, x = _, fixed = TRUE) |>
         gsub("{{empresa_nome}}", nome_empresa, x = _, fixed = TRUE) |>
+        gsub("{{empresa_whatsapp}}", empresa_config$empresa_whatsapp, x = _, fixed = TRUE) |>
         gsub("{{cliente_nome}}", "Cliente Exemplo LTDA", x = _, fixed = TRUE) |>
         gsub("{{cliente_email}}", "cliente@exemplo.com", x = _, fixed = TRUE) |>
         gsub("{{email_principal}}", "cliente@exemplo.com", x = _, fixed = TRUE) |>
@@ -1287,6 +1271,7 @@ server <- function(input, output, session) {
         tibble::tibble(
           empresa_id = character(),
           empresa_nome = character(),
+          empresa_whatsapp = character(),
           email_remetente = character(),
           nome_remetente = character(),
           smtp_id = character(),
@@ -1295,14 +1280,36 @@ server <- function(input, output, session) {
       )
     }
 
-    readr::read_csv(
+    dados <- readr::read_csv(
       caminho,
       show_col_types = FALSE,
       col_types = readr::cols(.default = "c")
-    ) |>
+    )
+
+    if (!"empresa_whatsapp" %in% names(dados)) {
+      dados$empresa_whatsapp <- ""
+    }
+
+    colunas_remetentes <- c(
+      "empresa_id",
+      "empresa_nome",
+      "empresa_whatsapp",
+      "email_remetente",
+      "nome_remetente",
+      "smtp_id",
+      "ativo"
+    )
+
+    for (coluna in setdiff(colunas_remetentes, names(dados))) {
+      dados[[coluna]] <- ""
+    }
+
+    dados |>
       dplyr::mutate(
+        empresa_whatsapp = normalizar_telefone_br(.data$empresa_whatsapp),
         ativo = as.logical(.data$ativo)
-      )
+      ) |>
+      dplyr::select(dplyr::all_of(colunas_remetentes), dplyr::everything())
   }
 
   salvar_remetentes_dados <- function(dados) {
@@ -1323,6 +1330,7 @@ server <- function(input, output, session) {
       colnames = c(
         "ID Empresa",
         "Nome Empresa",
+        "WhatsApp Empresa",
         "Email Remetente",
         "Nome Remetente",
         "SMTP ID",
@@ -1342,6 +1350,7 @@ server <- function(input, output, session) {
 
     updateSelectInput(session, "rem_empresa_id", selected = remetente$empresa_id)
     updateTextInput(session, "rem_empresa_nome", value = remetente$empresa_nome)
+    updateTextInput(session, "rem_empresa_whatsapp", value = formatar_telefone_br(remetente$empresa_whatsapp))
     updateTextInput(session, "rem_email", value = remetente$email_remetente)
     updateTextInput(session, "rem_nome", value = remetente$nome_remetente)
     updateSelectInput(session, "rem_smtp_id", selected = remetente$smtp_id)
@@ -1362,6 +1371,7 @@ server <- function(input, output, session) {
       selected = if (length(empresas) > 0) empresas[1] else character(0)
     )
     updateTextInput(session, "rem_empresa_nome", value = "")
+    updateTextInput(session, "rem_empresa_whatsapp", value = "")
     updateTextInput(session, "rem_email", value = "")
     updateTextInput(session, "rem_nome", value = "")
     updateSelectInput(
@@ -1390,6 +1400,7 @@ server <- function(input, output, session) {
     novo_registro <- tibble::tibble(
       empresa_id = as.character(input$rem_empresa_id),
       empresa_nome = as.character(input$rem_empresa_nome),
+      empresa_whatsapp = normalizar_telefone_br(input$rem_empresa_whatsapp),
       email_remetente = as.character(input$rem_email),
       nome_remetente = as.character(input$rem_nome),
       smtp_id = as.character(input$rem_smtp_id),
@@ -2198,11 +2209,13 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         texto <- readr::read_file(
           file.path(pasta_raiz, empresa, "modelos", "assunto.txt")
         )
+        empresa_config <- carregar_dados_empresa_config(empresa)
 
         texto |>
           gsub("{{cliente_nome}}", as.character(cliente$cliente_nome[1]), x = _, fixed = TRUE) |>
           gsub("{{cliente_email}}", as.character(cliente$email_principal[1]), x = _, fixed = TRUE) |>
           gsub("{{email_principal}}", as.character(cliente$email_principal[1]), x = _, fixed = TRUE) |>
+          gsub("{{empresa_whatsapp}}", empresa_config$empresa_whatsapp, x = _, fixed = TRUE) |>
           gsub("{{mes_atual}}", mes_email, x = _, fixed = TRUE) |>
           gsub("{{ano_atual}}", as.character(ano_email), x = _, fixed = TRUE) |>
           gsub("{{mes_referencia}}", mes_email, x = _, fixed = TRUE) |>
@@ -3187,9 +3200,18 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
   output$fila_tabela <- DT::renderDT({
     fila_refresh()
+    dados_tabela <- carregar_fila()
+    status_filtro <- input$fila_status_filtro
+
+    if (is.null(status_filtro) || length(status_filtro) == 0) {
+      status_filtro <- c("pendente", "processando", "erro")
+    }
+
+    dados_tabela <- dados_tabela |>
+      dplyr::filter(.data$status %in% status_filtro)
 
     datatable_padrao(
-      carregar_fila(),
+      dados_tabela,
       page_length = 15,
       colnames = c(
         "Empresa",

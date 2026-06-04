@@ -117,7 +117,7 @@ ui_app <- fluidPage(
         return digits;
       }
 
-      $(document).on('input blur', '#cliente_whatsapp, #cw_teste_telefone', function() {
+      $(document).on('input blur', '#cliente_whatsapp, #cw_teste_telefone, #rem_empresa_whatsapp', function() {
         $(this).val(formatTelefoneBR($(this).val()));
       });
     "))
@@ -322,6 +322,14 @@ ui_app <- fluidPage(
 
             h3("Itens da Fila"),
 
+            selectInput(
+              "fila_status_filtro",
+              "Status",
+              choices = c("pendente", "processando", "erro", "enviado"),
+              selected = c("pendente", "processando", "erro"),
+              multiple = TRUE
+            ),
+
             DTOutput("fila_tabela")
           )
         )
@@ -525,6 +533,7 @@ ui_app <- fluidPage(
               tags$li("{{cliente_email}}"),
               tags$li("{{email_principal}}"),
               tags$li("{{empresa_nome}}"),
+              tags$li("{{empresa_whatsapp}}"),
               tags$li("{{mes_referencia}}"),
               tags$li("{{ano_referencia}}"),
               tags$li("{{competencia_pdfs}}")
@@ -598,6 +607,7 @@ ui_app <- fluidPage(
 
             uiOutput("ui_rem_empresa_id"),
             textInput("rem_empresa_nome", "Nome da Empresa"),
+            textInput("rem_empresa_whatsapp", "WhatsApp da Empresa"),
             textInput("rem_email", "Email Remetente"),
             textInput("rem_nome", "Nome Remetente"),
             uiOutput("ui_rem_smtp_id"),
@@ -790,6 +800,7 @@ ui_app <- fluidPage(
               tags$li("{{cliente_email}}"),
               tags$li("{{email_principal}}"),
               tags$li("{{empresa_nome}}"),
+              tags$li("{{empresa_whatsapp}}"),
               tags$li("{{mes_referencia}}"),
               tags$li("{{ano_referencia}}"),
               tags$li("{{competencia_pdfs}}")

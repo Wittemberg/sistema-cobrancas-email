@@ -49,6 +49,49 @@ formatar_telefone_br <- function(telefone) {
   )
 }
 
+carregar_dados_empresa_config <- function(empresa) {
+  caminho <- file.path(pasta_raiz, "_config", "remetentes.csv")
+  padrao <- list(
+    empresa_nome = as.character(empresa),
+    empresa_whatsapp = ""
+  )
+
+  if (!file.exists(caminho)) {
+    return(padrao)
+  }
+
+  remetentes <- readr::read_csv(
+    caminho,
+    show_col_types = FALSE,
+    col_types = readr::cols(.default = "c")
+  )
+
+  registro <- remetentes |>
+    dplyr::filter(.data$empresa_id == empresa) |>
+    dplyr::slice(1)
+
+  if (nrow(registro) == 0) {
+    return(padrao)
+  }
+
+  if (
+    "empresa_nome" %in% names(registro) &&
+      !is.na(registro$empresa_nome[1]) &&
+      registro$empresa_nome[1] != ""
+  ) {
+    padrao$empresa_nome <- as.character(registro$empresa_nome[1])
+  }
+
+  if (
+    "empresa_whatsapp" %in% names(registro) &&
+      !is.na(registro$empresa_whatsapp[1])
+  ) {
+    padrao$empresa_whatsapp <- formatar_telefone_br(registro$empresa_whatsapp[1])
+  }
+
+  padrao
+}
+
 listar_empresas <- function() {
 
   dirs <- dir_ls(

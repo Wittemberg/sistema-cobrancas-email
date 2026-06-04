@@ -122,10 +122,13 @@ enviar_email_cliente <- function(
   }
 
   substituir_variaveis_email <- function(texto) {
+    empresa_config <- carregar_dados_empresa_config(empresa)
+
     texto |>
       gsub("{{cliente_nome}}", as.character(cliente$cliente_nome), x = _, fixed = TRUE) |>
       gsub("{{cliente_email}}", as.character(cliente$email_principal), x = _, fixed = TRUE) |>
       gsub("{{email_principal}}", as.character(cliente$email_principal), x = _, fixed = TRUE) |>
+      gsub("{{empresa_whatsapp}}", empresa_config$empresa_whatsapp, x = _, fixed = TRUE) |>
       gsub("{{mes_atual}}", mes_email, x = _, fixed = TRUE) |>
       gsub("{{ano_atual}}", as.character(ano_email), x = _, fixed = TRUE) |>
       gsub("{{mes_referencia}}", mes_email, x = _, fixed = TRUE) |>
@@ -133,6 +136,7 @@ enviar_email_cliente <- function(
       gsub("{cliente_nome}", as.character(cliente$cliente_nome), x = _, fixed = TRUE) |>
       gsub("{cliente_email}", as.character(cliente$email_principal), x = _, fixed = TRUE) |>
       gsub("{email_principal}", as.character(cliente$email_principal), x = _, fixed = TRUE) |>
+      gsub("{empresa_whatsapp}", empresa_config$empresa_whatsapp, x = _, fixed = TRUE) |>
       gsub("{mes_atual}", mes_email, x = _, fixed = TRUE) |>
       gsub("{ano_atual}", as.character(ano_email), x = _, fixed = TRUE) |>
       gsub("{mes_referencia}", mes_email, x = _, fixed = TRUE) |>
@@ -186,10 +190,12 @@ enviar_email_cliente <- function(
 
   if (file.exists(template_path)) {
     template_html <- readr::read_file(template_path)
+    empresa_config <- carregar_dados_empresa_config(empresa)
 
     corpo_html <- template_html |>
       gsub("{{corpo_email}}", gsub("\n", "<br>", corpo), x = _, fixed = TRUE) |>
       gsub("{{empresa_nome}}", remetente$empresa_nome, x = _, fixed = TRUE) |>
+      gsub("{{empresa_whatsapp}}", empresa_config$empresa_whatsapp, x = _, fixed = TRUE) |>
       gsub("{{cliente_nome}}", cliente$cliente_nome, x = _, fixed = TRUE) |>
       gsub("{{cliente_email}}", as.character(cliente$email_principal), x = _, fixed = TRUE) |>
       gsub("{{email_principal}}", as.character(cliente$email_principal), x = _, fixed = TRUE) |>

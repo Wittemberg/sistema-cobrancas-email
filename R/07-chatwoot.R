@@ -88,32 +88,7 @@ carregar_chatwoot_empresa <- function(empresa) {
 }
 
 carregar_nome_empresa <- function(empresa) {
-  caminho <- file.path(pasta_raiz, "_config", "remetentes.csv")
-
-  if (!file.exists(caminho)) {
-    return(as.character(empresa))
-  }
-
-  remetentes <- readr::read_csv(
-    caminho,
-    show_col_types = FALSE,
-    col_types = readr::cols(.default = "c")
-  )
-
-  remetente <- remetentes |>
-    dplyr::filter(.data$empresa_id == empresa) |>
-    dplyr::slice(1)
-
-  if (
-    nrow(remetente) == 0 ||
-      !"empresa_nome" %in% names(remetente) ||
-      is.na(remetente$empresa_nome[1]) ||
-      remetente$empresa_nome[1] == ""
-  ) {
-    return(as.character(empresa))
-  }
-
-  as.character(remetente$empresa_nome[1])
+  carregar_dados_empresa_config(empresa)$empresa_nome
 }
 
 normalizar_telefone_whatsapp <- function(telefone) {
@@ -138,7 +113,8 @@ substituir_variaveis_whatsapp <- function(
     mes_email = "",
     ano_email = ""
 ) {
-  empresa_nome <- carregar_nome_empresa(empresa)
+  empresa_config <- carregar_dados_empresa_config(empresa)
+  empresa_nome <- empresa_config$empresa_nome
   cliente_email <- if ("email_principal" %in% names(cliente)) {
     as.character(cliente$email_principal)
   } else {
@@ -151,6 +127,7 @@ substituir_variaveis_whatsapp <- function(
     gsub("{{email_principal}}", cliente_email, x = _, fixed = TRUE) |>
     gsub("{{empresa_id}}", as.character(empresa), x = _, fixed = TRUE) |>
     gsub("{{empresa_nome}}", empresa_nome, x = _, fixed = TRUE) |>
+    gsub("{{empresa_whatsapp}}", empresa_config$empresa_whatsapp, x = _, fixed = TRUE) |>
     gsub("{{competencia_pdfs}}", as.character(competencia), x = _, fixed = TRUE) |>
     gsub("{{mes_referencia}}", as.character(mes_email), x = _, fixed = TRUE) |>
     gsub("{{ano_referencia}}", as.character(ano_email), x = _, fixed = TRUE)
