@@ -39,4 +39,4 @@ RUN mkdir -p _config logs backups \
 
 EXPOSE 3838
 
-CMD ["R", "-e", "shiny::runApp('/srv/shiny-server', host = '0.0.0.0', port = 3838)"]
+CMD ["sh", "-c", "echo APP_VERSION=${APP_VERSION:-dev}; echo EMAIL_WORKER=$(test -f /srv/shiny-server/R/08-email-worker.R && echo TRUE || echo FALSE); R -e \"shiny::runApp('/srv/shiny-server', host = '0.0.0.0', port = 3838)\""]
