@@ -140,7 +140,9 @@ ui_app <- fluidPage(
       ),
       fluidRow(
         column(3, div(class = "well", h4("WhatsApp OK"), h2(textOutput("dash_whatsapp_ok")))),
-        column(3, div(class = "well", h4("WhatsApp Erros"), h2(textOutput("dash_whatsapp_erro"))))
+        column(3, div(class = "well", h4("WhatsApp Erros"), h2(textOutput("dash_whatsapp_erro")))),
+        column(3, div(class = "well", h4("Versao"), h5(textOutput("dash_app_version")))),
+        column(3, div(class = "well", h4("Worker Email"), h5(textOutput("dash_email_worker"))))
       ),
       fluidRow(
         column(

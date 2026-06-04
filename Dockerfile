@@ -1,7 +1,10 @@
 FROM rocker/shiny:4.4.3
 
+ARG APP_VERSION=dev
+
 ENV RENV_CONFIG_REPOS_OVERRIDE=https://cloud.r-project.org \
-    TZ=America/Sao_Paulo
+    TZ=America/Sao_Paulo \
+    APP_VERSION=${APP_VERSION}
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

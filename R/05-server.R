@@ -245,6 +245,26 @@ server <- function(input, output, session) {
     sum(logs$status == "erro", na.rm = TRUE)
   })
 
+  output$dash_app_version <- renderText({
+    versao <- Sys.getenv("APP_VERSION", unset = "dev")
+
+    if (is.na(versao) || versao == "") {
+      return("dev")
+    }
+
+    substr(versao, 1, 12)
+  })
+
+  output$dash_email_worker <- renderText({
+    caminho_worker <- file.path(pasta_raiz, "R", "08-email-worker.R")
+
+    if (file.exists(caminho_worker)) {
+      return("OK")
+    }
+
+    "ausente"
+  })
+
   output$dash_envios_empresa <- DT::renderDT({
     logs <- dashboard_logs()
 
@@ -2681,7 +2701,14 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     registrar_log_processamento(
       origem = "fila",
       etapa = "iniciar",
-      detalhe = paste("Pendentes:", length(pendentes)),
+      detalhe = paste(
+        "Pendentes:",
+        length(pendentes),
+        "| Versao:",
+        Sys.getenv("APP_VERSION", unset = "dev"),
+        "| Worker:",
+        file.exists(file.path(pasta_raiz, "R", "08-email-worker.R"))
+      ),
       total = length(pendentes)
     )
 
