@@ -2339,28 +2339,129 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       )
     }
 
-    readr::read_csv(caminho, show_col_types = FALSE)
+    readr::read_csv(
+      caminho,
+      show_col_types = FALSE,
+      col_types = readr::cols(.default = "c")
+    )
+  }
+
+  texto_contem_filtro <- function(dados, filtro) {
+    if (is.null(filtro) || length(filtro) == 0) {
+      return(rep(TRUE, nrow(dados)))
+    }
+
+    filtro <- trimws(as.character(filtro))
+
+    if (is.na(filtro) || filtro == "") {
+      return(rep(TRUE, nrow(dados)))
+    }
+
+    texto <- apply(
+      as.data.frame(dados, stringsAsFactors = FALSE),
+      1,
+      function(linha) paste(as.character(linha), collapse = " ")
+    )
+
+    grepl(filtro, texto, ignore.case = TRUE, fixed = TRUE)
+  }
+
+  filtro_tipo_erro <- function(dados) {
+    tipo <- if (is.null(input$logs_tipo_erro)) "Todos" else input$logs_tipo_erro
+
+    if (tipo == "Todos" || nrow(dados) == 0) {
+      return(rep(TRUE, nrow(dados)))
+    }
+
+    texto <- apply(
+      as.data.frame(dados, stringsAsFactors = FALSE),
+      1,
+      function(linha) paste(as.character(linha), collapse = " ")
+    )
+
+    padrao <- switch(
+      tipo,
+      "RCPT 550" = "RCPT failed: 550",
+      "Login denied" = "Login denied",
+      "Timeout" = "timeout",
+      "Falha conexao" = "Failure when receiving data",
+      "Chatwoot" = "Chatwoot",
+      "Sem email" = "sem e-mail",
+      "Sem WhatsApp" = "nao_enviado",
+      ""
+    )
+
+    if (padrao == "") {
+      return(rep(TRUE, nrow(dados)))
+    }
+
+    grepl(padrao, texto, ignore.case = TRUE, fixed = TRUE)
+  }
+
+  aplicar_filtros_logs <- function(dados, coluna_competencia = "competencia", coluna_status = "status") {
+    if (nrow(dados) == 0) {
+      return(dados)
+    }
+
+    if (!is.null(input$logs_empresa) && input$logs_empresa != "Todas" && "empresa" %in% names(dados)) {
+      dados <- dados |>
+        dplyr::filter(.data$empresa == input$logs_empresa)
+    }
+
+    if (
+      coluna_competencia %in% names(dados) &&
+        !is.null(input$logs_competencia) &&
+        trimws(input$logs_competencia) != ""
+    ) {
+      competencia_filtro <- trimws(input$logs_competencia)
+      dados <- dados |>
+        dplyr::filter(.data[[coluna_competencia]] == competencia_filtro)
+    }
+
+    if ("cliente_nome" %in% names(dados)) {
+      dados <- dados[texto_contem_filtro(dados["cliente_nome"], input$logs_cliente), , drop = FALSE]
+    }
+
+    if (
+      coluna_status %in% names(dados) &&
+        !is.null(input$logs_status) &&
+        length(input$logs_status) > 0
+    ) {
+      if (identical(coluna_status, "etapa")) {
+        padroes_status <- paste(input$logs_status, collapse = "|")
+        dados <- dados |>
+          dplyr::filter(grepl(padroes_status, .data[[coluna_status]], ignore.case = TRUE))
+      } else {
+        dados <- dados |>
+          dplyr::filter(.data[[coluna_status]] %in% input$logs_status)
+      }
+    }
+
+    if (!is.null(input$logs_origem) && input$logs_origem != "Todas" && "origem" %in% names(dados)) {
+      dados <- dados |>
+        dplyr::filter(.data$origem == input$logs_origem)
+    }
+
+    dados <- dados[filtro_tipo_erro(dados), , drop = FALSE]
+
+    if (isTRUE(input$logs_apenas_problemas)) {
+      if (coluna_status %in% names(dados)) {
+        dados <- dados |>
+          dplyr::filter(.data[[coluna_status]] != "enviado")
+      } else if ("etapa" %in% names(dados)) {
+        dados <- dados |>
+          dplyr::filter(grepl("erro|nao_enviado|timeout|falha", .data$etapa, ignore.case = TRUE))
+      }
+    }
+
+    dados
   }
 
   logs_filtrados <- reactive({
     input$atualizar_logs
     dados <- carregar_logs_dados()
 
-    if (nrow(dados) == 0) {
-      return(dados)
-    }
-
-    if (!is.null(input$logs_empresa) && input$logs_empresa != "Todas") {
-      dados <- dados |>
-        dplyr::filter(.data$empresa == input$logs_empresa)
-    }
-
-    if (!is.null(input$logs_competencia) && trimws(input$logs_competencia) != "") {
-      dados <- dados |>
-        dplyr::filter(.data$competencia_pdfs == input$logs_competencia)
-    }
-
-    dados
+    aplicar_filtros_logs(dados, coluna_competencia = "competencia_pdfs")
   })
 
   carregar_logs_whatsapp_dados <- function() {
@@ -2393,21 +2494,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     input$atualizar_logs
     dados <- carregar_logs_whatsapp_dados()
 
-    if (nrow(dados) == 0) {
-      return(dados)
-    }
-
-    if (!is.null(input$logs_empresa) && input$logs_empresa != "Todas") {
-      dados <- dados |>
-        dplyr::filter(.data$empresa == input$logs_empresa)
-    }
-
-    if (!is.null(input$logs_competencia) && trimws(input$logs_competencia) != "") {
-      dados <- dados |>
-        dplyr::filter(.data$competencia == input$logs_competencia)
-    }
-
-    dados
+    aplicar_filtros_logs(dados, coluna_competencia = "competencia")
   })
 
   carregar_logs_processamento_dados <- function() {
@@ -2441,21 +2528,92 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     input$atualizar_logs
     dados <- carregar_logs_processamento_dados()
 
-    if (nrow(dados) == 0) {
-      return(dados)
+    aplicar_filtros_logs(dados, coluna_competencia = "competencia", coluna_status = "etapa")
+  })
+
+  logs_resumo_clientes <- reactive({
+    input$atualizar_logs
+
+    emails <- carregar_logs_dados()
+    whatsapps <- carregar_logs_whatsapp_dados()
+
+    clientes_email <- emails |>
+      dplyr::select(
+        empresa,
+        competencia = competencia_pdfs,
+        cliente_nome,
+        email_principal,
+        email_status = status,
+        email_erro = erro
+      )
+
+    clientes_whatsapp <- whatsapps |>
+      dplyr::select(
+        empresa,
+        competencia,
+        cliente_nome,
+        telefone,
+        whatsapp_status = status,
+        whatsapp_erro = erro
+      )
+
+    chaves <- dplyr::bind_rows(
+      clientes_email |> dplyr::select(empresa, competencia, cliente_nome),
+      clientes_whatsapp |> dplyr::select(empresa, competencia, cliente_nome)
+    ) |>
+      dplyr::filter(.data$cliente_nome != "") |>
+      dplyr::distinct()
+
+    if (nrow(chaves) == 0) {
+      return(tibble::tibble(
+        empresa = character(),
+        competencia = character(),
+        cliente_nome = character(),
+        email_principal = character(),
+        telefone = character(),
+        email_enviado = logical(),
+        whatsapp_enviado = logical(),
+        email_erro = character(),
+        whatsapp_erro = character(),
+        resultado = character()
+      ))
     }
 
-    if (!is.null(input$logs_empresa) && input$logs_empresa != "Todas") {
-      dados <- dados |>
-        dplyr::filter(.data$empresa == input$logs_empresa)
+    resumo <- chaves |>
+      dplyr::left_join(clientes_email, by = c("empresa", "competencia", "cliente_nome")) |>
+      dplyr::left_join(clientes_whatsapp, by = c("empresa", "competencia", "cliente_nome")) |>
+      dplyr::group_by(.data$empresa, .data$competencia, .data$cliente_nome) |>
+      dplyr::summarise(
+        email_principal = dplyr::first(stats::na.omit(.data$email_principal), default = ""),
+        telefone = dplyr::first(stats::na.omit(.data$telefone), default = ""),
+        email_enviado = any(.data$email_status == "enviado", na.rm = TRUE),
+        whatsapp_enviado = any(.data$whatsapp_status == "enviado", na.rm = TRUE),
+        email_erro = dplyr::first(stats::na.omit(.data$email_erro), default = ""),
+        whatsapp_erro = dplyr::first(stats::na.omit(.data$whatsapp_erro), default = ""),
+        .groups = "drop"
+      ) |>
+      dplyr::mutate(
+        resultado = dplyr::case_when(
+          .data$email_enviado & .data$whatsapp_enviado ~ "Recebeu tudo",
+          .data$email_enviado & !.data$whatsapp_enviado ~ "So email",
+          !.data$email_enviado & .data$whatsapp_enviado ~ "So WhatsApp",
+          TRUE ~ "Nao recebeu nada"
+        )
+      )
+
+    resumo <- aplicar_filtros_logs(resumo, coluna_competencia = "competencia", coluna_status = "__sem_status__")
+
+    if (!is.null(input$logs_resultado) && input$logs_resultado != "Todos") {
+      resumo <- resumo |>
+        dplyr::filter(.data$resultado == input$logs_resultado)
     }
 
-    if (!is.null(input$logs_competencia) && trimws(input$logs_competencia) != "") {
-      dados <- dados |>
-        dplyr::filter(.data$competencia == input$logs_competencia)
+    if (isTRUE(input$logs_apenas_problemas)) {
+      resumo <- resumo |>
+        dplyr::filter(.data$resultado != "Recebeu tudo")
     }
 
-    dados
+    resumo
   })
 
   output$logs_tabela <- DT::renderDT({
@@ -2474,6 +2632,31 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         "Qtd PDFs",
         "Status",
         "Erro"
+      )
+    )
+  })
+
+  output$logs_resumo_tabela <- DT::renderDT({
+    dados_tabela <- logs_resumo_clientes()
+
+    if ("telefone" %in% names(dados_tabela)) {
+      dados_tabela$telefone <- formatar_telefone_br(dados_tabela$telefone)
+    }
+
+    datatable_padrao(
+      dados_tabela,
+      page_length = 15,
+      colnames = c(
+        "Empresa",
+        "CompetÃªncia",
+        "Cliente",
+        "Email Principal",
+        "Telefone",
+        "Email Enviado",
+        "WhatsApp Enviado",
+        "Erro Email",
+        "Erro WhatsApp",
+        "Resultado"
       )
     )
   })
@@ -2739,7 +2922,78 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     fila_msg("Fila limpa com sucesso.")
   })
 
+  iniciar_processamento_fila <- function(statuses, descricao = "Processando") {
+    if (!is.null(fila_processamento())) {
+      fila_msg("Processamento da fila ja esta em andamento.")
+      return(FALSE)
+    }
+
+    fila <- carregar_fila()
+
+    if (nrow(fila) == 0) {
+      fila_msg("Fila vazia.")
+      return(FALSE)
+    }
+
+    pendentes <- which(fila$status %in% statuses)
+
+    if (length(pendentes) == 0) {
+      fila_msg("Nao existem itens para processar com os status selecionados.")
+      return(FALSE)
+    }
+
+    if (any(fila$status[pendentes] %in% c("erro", "processando"))) {
+      fila$status[pendentes] <- "pendente"
+      salvar_fila(fila)
+      atualizar_fila()
+    }
+
+    criar_backup_seguro()
+
+    resultado <- c(paste0(descricao, " ", length(pendentes), " item(ns)."))
+    fila_msg(paste(resultado, collapse = "\n"))
+    registrar_log_processamento(
+      origem = "fila",
+      etapa = "iniciar",
+      detalhe = paste(
+        "Pendentes:",
+        length(pendentes),
+        "| Versao:",
+        Sys.getenv("APP_VERSION", unset = "dev"),
+        "| Worker:",
+        file.exists(file.path(pasta_raiz, "R", "08-email-worker.R")),
+        "| Status:",
+        paste(statuses, collapse = ",")
+      ),
+      total = length(pendentes)
+    )
+
+    fila_processamento(list(
+      pendentes = pendentes,
+      posicao = 1,
+      resultado = resultado,
+      mes_email = input$fila_mes_email,
+      ano_email = input$fila_ano_email,
+      enviar_whatsapp = isTRUE(input$fila_enviar_whatsapp_pos_email),
+      whatsapp_intervalo_segundos = input$fila_whatsapp_intervalo_segundos
+    ))
+    registrar_log_processamento(
+      origem = "fila",
+      etapa = "agendar_primeiro_item",
+      detalhe = "Agendamento inicial criado",
+      total = length(pendentes)
+    )
+    agendar_proximo_item_fila(0.5)
+    TRUE
+  }
+
   observeEvent(input$processar_fila, {
+    iniciar_processamento_fila(
+      statuses = c("pendente", "erro", "processando"),
+      descricao = "Processando"
+    )
+    return()
+
     if (!is.null(fila_processamento())) {
       fila_msg("Processamento da fila ja esta em andamento.")
       return()
@@ -2872,6 +3126,20 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
     resultado <- c(resultado, "Processamento finalizado.")
     fila_msg(paste(resultado, collapse = "\n"))
+  })
+
+  observeEvent(input$reprocessar_erros_fila, {
+    iniciar_processamento_fila(
+      statuses = c("erro", "processando"),
+      descricao = "Reprocessando erros"
+    )
+  })
+
+  observeEvent(input$reprocessar_erros_fila_logs, {
+    iniciar_processamento_fila(
+      statuses = c("erro", "processando"),
+      descricao = "Reprocessando erros"
+    )
   })
 
   agendar_proximo_item_fila <- function(intervalo = 0.5) {

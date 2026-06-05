@@ -339,6 +339,14 @@ ui_app <- fluidPage(
             br(),
 
             actionButton(
+              "reprocessar_erros_fila",
+              "Reprocessar Erros"
+            ),
+
+            br(),
+            br(),
+
+            actionButton(
               "limpar_fila",
               "Limpar Fila"
             ),
@@ -887,6 +895,44 @@ ui_app <- fluidPage(
               value = ""
             ),
 
+            textInput(
+              "logs_cliente",
+              "Cliente",
+              value = ""
+            ),
+
+            selectizeInput(
+              "logs_status",
+              "Status",
+              choices = c("enviado", "erro", "pendente", "processando", "nao_enviado"),
+              selected = character(0),
+              multiple = TRUE
+            ),
+
+            selectInput(
+              "logs_origem",
+              "Origem",
+              choices = c("Todas", "fila", "disparo", "log_envio", "automatico_email", "automatico_email_falha", "manual")
+            ),
+
+            selectInput(
+              "logs_tipo_erro",
+              "Tipo de erro",
+              choices = c("Todos", "RCPT 550", "Login denied", "Timeout", "Falha conexao", "Chatwoot", "Sem email", "Sem WhatsApp")
+            ),
+
+            selectInput(
+              "logs_resultado",
+              "Resultado por cliente",
+              choices = c("Todos", "Recebeu tudo", "So email", "So WhatsApp", "Nao recebeu nada")
+            ),
+
+            checkboxInput(
+              "logs_apenas_problemas",
+              "Mostrar apenas problemas",
+              value = FALSE
+            ),
+
             actionButton("atualizar_logs", "Atualizar Logs"),
 
             hr(),
@@ -895,6 +941,13 @@ ui_app <- fluidPage(
               "reenviar_falhas",
               "Reenviar Falhas",
               class = "btn-primary"
+            ),
+
+            br(), br(),
+
+            actionButton(
+              "reprocessar_erros_fila_logs",
+              "Reprocessar Erros da Fila"
             ),
 
             br(), br(),
@@ -911,6 +964,12 @@ ui_app <- fluidPage(
             h3("Histórico de Envios"),
 
             DTOutput("logs_tabela"),
+
+            br(),
+
+            h3("Resumo por Cliente"),
+
+            DTOutput("logs_resumo_tabela"),
 
             br(),
 

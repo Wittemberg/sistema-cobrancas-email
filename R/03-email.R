@@ -309,6 +309,27 @@ enviar_email_cliente <- function(
     stop("SMTP nao encontrado para o remetente: ", as.character(remetente$smtp_id[1]))
   }
 
+  remetentes_tentativa <- remetentes |>
+    dplyr::filter(
+      .data$empresa_id == empresa,
+      as.logical(.data$ativo) == TRUE,
+      .data$smtp_id %in% smtp_lista$smtp_id
+    ) |>
+    dplyr::distinct(.data$smtp_id, .keep_all = TRUE) |>
+    dplyr::mutate(
+      tentativa_ordem = ifelse(
+        .data$smtp_id == as.character(remetente$smtp_id[1]),
+        0L,
+        dplyr::row_number()
+      )
+    ) |>
+    dplyr::arrange(.data$tentativa_ordem) |>
+    dplyr::select(-tentativa_ordem)
+
+  if (nrow(remetentes_tentativa) == 0) {
+    remetentes_tentativa <- remetente
+  }
+
   registrar_etapa_email(
     "smtp_rotacao",
     paste(
@@ -399,38 +420,13 @@ enviar_email_cliente <- function(
     )
   }
 
-  smtp_senha_env <- paste0(
-    "SMTP_SENHA_",
-    as.character(smtp$smtp_id)
-  )
-
-  do.call(
-    Sys.setenv,
-    stats::setNames(
-      as.list(as.character(smtp$senha)),
-      smtp_senha_env
-    )
-  )
-
-  registrar_etapa_email("preparando_credenciais")
-
   if (!cliente_tem_email_principal(cliente)) {
     registrar_etapa_email("sem_email_principal")
     stop("Cliente sem e-mail principal.")
   }
 
-  credenciais <- blastula::creds_envvar(
-    user = as.character(smtp$usuario),
-    pass_envvar = smtp_senha_env,
-    host = as.character(smtp$host),
-    port = as.numeric(smtp$port),
-    use_ssl = as.logical(smtp$use_ssl)
-  )
-
   destinatario <- trimws(as.character(cliente$email_principal))
   copias <- normalizar_lista_emails(cliente$email_copias)
-
-  registrar_etapa_email("smtp_send_inicio", paste("Para:", destinatario))
 
   timeout <- as.numeric(smtp_timeout_segundos)
 
@@ -441,22 +437,105 @@ enviar_email_cliente <- function(
   setTimeLimit(elapsed = timeout, transient = TRUE)
   on.exit(setTimeLimit(cpu = Inf, elapsed = Inf, transient = FALSE), add = TRUE)
 
-  tryCatch(
-    blastula::smtp_send(
-      email = email,
-      from = as.character(smtp$usuario),
-      to = destinatario,
-      cc = copias,
-      subject = as.character(assunto),
-      credentials = credenciais
-    ),
-    error = function(e) {
-      registrar_etapa_email("smtp_send_erro", conditionMessage(e))
-      stop(e)
-    }
-  )
+  erros_smtp <- character(0)
 
-  registrar_etapa_email("smtp_send_ok", paste("Para:", destinatario))
+  for (tentativa in seq_len(nrow(remetentes_tentativa))) {
+    remetente_tentativa <- remetentes_tentativa |>
+      dplyr::slice(tentativa)
+
+    smtp_tentativa <- smtp_lista |>
+      dplyr::filter(.data$smtp_id == remetente_tentativa$smtp_id) |>
+      dplyr::slice(1)
+
+    if (nrow(smtp_tentativa) == 0) {
+      erros_smtp <- c(
+        erros_smtp,
+        paste("SMTP nao encontrado:", as.character(remetente_tentativa$smtp_id[1]))
+      )
+      next
+    }
+
+    smtp_senha_env <- paste0(
+      "SMTP_SENHA_",
+      as.character(smtp_tentativa$smtp_id)
+    )
+
+    do.call(
+      Sys.setenv,
+      stats::setNames(
+        as.list(as.character(smtp_tentativa$senha)),
+        smtp_senha_env
+      )
+    )
+
+    credenciais <- blastula::creds_envvar(
+      user = as.character(smtp_tentativa$usuario),
+      pass_envvar = smtp_senha_env,
+      host = as.character(smtp_tentativa$host),
+      port = as.numeric(smtp_tentativa$port),
+      use_ssl = as.logical(smtp_tentativa$use_ssl)
+    )
+
+    detalhe_tentativa <- paste(
+      "Tentativa:",
+      tentativa,
+      "de",
+      nrow(remetentes_tentativa),
+      "| Remetente:",
+      as.character(remetente_tentativa$email_remetente[1]),
+      "| SMTP:",
+      as.character(remetente_tentativa$smtp_id[1]),
+      "| Para:",
+      destinatario
+    )
+
+    registrar_etapa_email("smtp_send_inicio", detalhe_tentativa)
+    message(
+      "SMTP_TENTATIVA=",
+      "tentativa:",
+      tentativa,
+      "|remetente:",
+      as.character(remetente_tentativa$email_remetente[1]),
+      "|smtp:",
+      as.character(remetente_tentativa$smtp_id[1])
+    )
+
+    envio_ok <- tryCatch({
+      blastula::smtp_send(
+        email = email,
+        from = as.character(smtp_tentativa$usuario),
+        to = destinatario,
+        cc = copias,
+        subject = as.character(assunto),
+        credentials = credenciais
+      )
+
+      TRUE
+    }, error = function(e) {
+      erro <- paste(
+        as.character(remetente_tentativa$smtp_id[1]),
+        "-",
+        conditionMessage(e)
+      )
+      erros_smtp <<- c(erros_smtp, erro)
+      registrar_etapa_email("smtp_send_erro", erro)
+      FALSE
+    })
+
+    if (isTRUE(envio_ok)) {
+      registrar_etapa_email("smtp_send_ok", detalhe_tentativa)
+      return(TRUE)
+    }
+
+    if (tentativa < nrow(remetentes_tentativa)) {
+      registrar_etapa_email(
+        "smtp_retry",
+        paste("Tentando proximo SMTP apos falha em", as.character(remetente_tentativa$smtp_id[1]))
+      )
+    }
+  }
+
+  stop("Falha no envio por todos os SMTPs ativos da empresa: ", paste(erros_smtp, collapse = " | "))
 
   return(TRUE)
 
