@@ -370,9 +370,10 @@ server <- function(input, output, session) {
       )
     }
 
-    datatable_padrao(
+    DT::datatable(
       dados_tabela,
       selection = "single",
+      rownames = FALSE,
       colnames = c(
         "Cliente",
         "Email Principal",
@@ -380,6 +381,31 @@ server <- function(input, output, session) {
         "WhatsApp",
         "Ativo",
         "Observação"
+      ),
+      options = list(
+        pageLength = 10,
+        stateSave = TRUE,
+        scrollX = TRUE,
+        autoWidth = FALSE,
+        columnDefs = list(
+          list(
+            targets = 3,
+            width = "170px",
+            className = "dt-nowrap"
+          )
+        ),
+        language = list(
+          search = "Pesquisa:",
+          lengthMenu = "Mostrar _MENU_ registros",
+          info = "Mostrando _START_ até _END_ de _TOTAL_ registros",
+          infoEmpty = "Mostrando 0 até 0 de 0 registros",
+          zeroRecords = "Nenhum registro encontrado",
+          emptyTable = "Nenhum dado disponível",
+          paginate = list(
+            previous = "Anterior",
+            `next` = "Próximo"
+          )
+        )
       )
     )
   })

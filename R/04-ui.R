@@ -48,6 +48,10 @@ ui_app <- fluidPage(
         color: white;
       }
 
+      .dt-nowrap {
+        white-space: nowrap;
+      }
+
       h3 {
         border-left: 5px solid #d40000;
         padding-left: 10px;
