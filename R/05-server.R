@@ -324,6 +324,7 @@ server <- function(input, output, session) {
   clientes_msg <- reactiveVal("Aguardando edição.")
   cliente_selecionado <- reactiveVal(NULL)
   clientes_refresh <- reactiveVal(0)
+  clientes_page_length <- reactiveVal(10)
 
   atualizar_clientes <- function() {
     atualizar_contador(clientes_refresh)
@@ -361,6 +362,14 @@ server <- function(input, output, session) {
     ler_clientes_empresa(input$clientes_empresa)
   })
 
+  observeEvent(input$clientes_tabela_page_length, {
+    valor <- as.integer(input$clientes_tabela_page_length)
+
+    if (!is.na(valor) && valor > 0) {
+      clientes_page_length(valor)
+    }
+  })
+
   output$clientes_tabela <- DT::renderDT({
     dados_tabela <- clientes_dados()
 
@@ -374,6 +383,11 @@ server <- function(input, output, session) {
       dados_tabela,
       selection = "single",
       rownames = FALSE,
+      callback = DT::JS(
+        "table.on('length.dt', function(e, settings, len) {",
+        "  Shiny.setInputValue('clientes_tabela_page_length', len, {priority: 'event'});",
+        "});"
+      ),
       colnames = c(
         "Cliente",
         "Email Principal",
@@ -383,7 +397,7 @@ server <- function(input, output, session) {
         "Observação"
       ),
       options = list(
-        pageLength = 10,
+        pageLength = clientes_page_length(),
         stateSave = TRUE,
         scrollX = TRUE,
         autoWidth = FALSE,
