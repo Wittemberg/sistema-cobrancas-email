@@ -2,6 +2,24 @@
 # FUNÇÕES DE EMAIL
 # =========================================================
 
+normalizar_lista_emails <- function(texto) {
+  texto <- as.character(texto)
+
+  if (length(texto) == 0 || is.na(texto) || trimws(texto) == "") {
+    return(NULL)
+  }
+
+  emails <- unlist(strsplit(texto, "[;,[:space:]]+", perl = TRUE))
+  emails <- trimws(emails)
+  emails <- emails[emails != ""]
+
+  if (length(emails) == 0) {
+    return(NULL)
+  }
+
+  unique(emails)
+}
+
 enviar_email_cliente_subprocesso <- function(
     empresa,
     cliente,
@@ -268,11 +286,7 @@ enviar_email_cliente <- function(
   )
 
   destinatario <- trimws(as.character(cliente$email_principal))
-  copias <- trimws(as.character(cliente$email_copias))
-
-  if (is.na(copias) || copias == "") {
-    copias <- NULL
-  }
+  copias <- normalizar_lista_emails(cliente$email_copias)
 
   registrar_etapa_email("smtp_send_inicio", paste("Para:", destinatario))
 
