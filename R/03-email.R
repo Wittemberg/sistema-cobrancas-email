@@ -20,6 +20,26 @@ normalizar_lista_emails <- function(texto) {
   unique(emails)
 }
 
+cliente_tem_email_principal <- function(cliente) {
+  if (!"email_principal" %in% names(cliente)) {
+    return(FALSE)
+  }
+
+  email <- trimws(as.character(cliente$email_principal[1]))
+
+  !is.na(email) && email != "" && grepl("@", email, fixed = TRUE)
+}
+
+cliente_tem_whatsapp <- function(cliente) {
+  if (!"telefone_whatsapp" %in% names(cliente)) {
+    return(FALSE)
+  }
+
+  telefone <- normalizar_telefone_br(cliente$telefone_whatsapp[1])
+
+  !is.na(telefone) && nchar(telefone) >= 10
+}
+
 enviar_email_cliente_subprocesso <- function(
     empresa,
     cliente,
@@ -128,6 +148,11 @@ enviar_email_cliente <- function(
   }
 
   if (isTRUE(usar_subprocesso)) {
+    if (!cliente_tem_email_principal(cliente)) {
+      registrar_etapa_email("sem_email_principal")
+      stop("Cliente sem e-mail principal.")
+    }
+
     return(enviar_email_cliente_subprocesso(
       empresa = empresa,
       cliente = cliente,
@@ -277,6 +302,11 @@ enviar_email_cliente <- function(
 
   registrar_etapa_email("preparando_credenciais")
 
+  if (!cliente_tem_email_principal(cliente)) {
+    registrar_etapa_email("sem_email_principal")
+    stop("Cliente sem e-mail principal.")
+  }
+
   credenciais <- blastula::creds_envvar(
     user = as.character(smtp$usuario),
     pass_envvar = smtp_senha_env,
@@ -354,6 +384,11 @@ enviar_whatsapp_apos_tentativa_email <- function(
     email_status = "email_enviado"
 ) {
   if (isTRUE(enviar_whatsapp) && exists("enviar_whatsapp_cliente")) {
+    if (!cliente_tem_whatsapp(cliente)) {
+      message("WhatsApp nao enviado: cliente sem telefone WhatsApp.")
+      return(FALSE)
+    }
+
     origem <- if (identical(email_status, "email_falha")) {
       "automatico_email_falha"
     } else {
