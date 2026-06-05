@@ -40,6 +40,94 @@ cliente_tem_whatsapp <- function(cliente) {
   !is.na(telefone) && nchar(telefone) >= 10
 }
 
+caminho_rotacao_smtp <- function() {
+  file.path(pasta_raiz, "_config", "smtp_rotacao.csv")
+}
+
+carregar_rotacao_smtp <- function() {
+  caminho <- caminho_rotacao_smtp()
+
+  if (!file.exists(caminho)) {
+    return(tibble::tibble(
+      empresa_id = character(),
+      contador_envios = integer()
+    ))
+  }
+
+  readr::read_csv(
+    caminho,
+    show_col_types = FALSE,
+    col_types = readr::cols(.default = "c")
+  ) |>
+    dplyr::mutate(
+      contador_envios = suppressWarnings(as.integer(.data$contador_envios)),
+      contador_envios = ifelse(is.na(.data$contador_envios), 0L, .data$contador_envios)
+    )
+}
+
+salvar_rotacao_smtp <- function(dados) {
+  caminho <- caminho_rotacao_smtp()
+  dir.create(dirname(caminho), recursive = TRUE, showWarnings = FALSE)
+  readr::write_csv(dados, caminho)
+}
+
+selecionar_remetente_rotativo <- function(empresa, remetentes, bloco = 10) {
+  remetentes_empresa <- remetentes |>
+    dplyr::filter(
+      .data$empresa_id == empresa,
+      as.logical(.data$ativo) == TRUE
+    )
+
+  if (nrow(remetentes_empresa) == 0) {
+    stop("Nenhum remetente ativo cadastrado para a empresa.")
+  }
+
+  bloco <- as.integer(bloco)
+
+  if (is.na(bloco) || bloco < 1) {
+    bloco <- 10L
+  }
+
+  rotacao <- carregar_rotacao_smtp()
+  registro <- rotacao |>
+    dplyr::filter(.data$empresa_id == empresa) |>
+    dplyr::slice(1)
+
+  contador <- if (nrow(registro) == 0) {
+    0L
+  } else {
+    as.integer(registro$contador_envios[1])
+  }
+
+  if (is.na(contador) || contador < 0) {
+    contador <- 0L
+  }
+
+  indice <- (floor(contador / bloco) %% nrow(remetentes_empresa)) + 1
+  remetente <- remetentes_empresa |>
+    dplyr::slice(indice)
+
+  novo_contador <- contador + 1L
+
+  rotacao_atualizada <- rotacao |>
+    dplyr::filter(.data$empresa_id != empresa)
+
+  rotacao_atualizada <- dplyr::bind_rows(
+    rotacao_atualizada,
+    tibble::tibble(
+      empresa_id = as.character(empresa),
+      contador_envios = novo_contador
+    )
+  )
+
+  salvar_rotacao_smtp(rotacao_atualizada)
+
+  attr(remetente, "rotacao_contador") <- novo_contador
+  attr(remetente, "rotacao_indice") <- indice
+
+  remetente
+}
+
 enviar_email_cliente_subprocesso <- function(
     empresa,
     cliente,
@@ -205,18 +293,42 @@ enviar_email_cliente <- function(
     show_col_types = FALSE
   )
 
-  remetente <- remetentes |>
-    dplyr::filter(
-      .data$empresa_id == empresa,
-      as.logical(.data$ativo) == TRUE
-    ) |>
-    dplyr::slice(1)
+  remetente <- selecionar_remetente_rotativo(
+    empresa = empresa,
+    remetentes = remetentes,
+    bloco = 10
+  )
 
   smtp <- smtp_lista |>
     dplyr::filter(
       .data$smtp_id == remetente$smtp_id
     ) |>
     dplyr::slice(1)
+
+  if (nrow(smtp) == 0) {
+    stop("SMTP nao encontrado para o remetente: ", as.character(remetente$smtp_id[1]))
+  }
+
+  registrar_etapa_email(
+    "smtp_rotacao",
+    paste(
+      "Remetente:",
+      as.character(remetente$email_remetente[1]),
+      "| SMTP:",
+      as.character(remetente$smtp_id[1]),
+      "| Contador:",
+      attr(remetente, "rotacao_contador")
+    )
+  )
+  message(
+    "SMTP_ROTACAO=",
+    "remetente:",
+    as.character(remetente$email_remetente[1]),
+    "|smtp:",
+    as.character(remetente$smtp_id[1]),
+    "|contador:",
+    attr(remetente, "rotacao_contador")
+  )
 
   registrar_etapa_email("carregando_modelos")
 
