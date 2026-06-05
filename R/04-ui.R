@@ -62,17 +62,25 @@ ui_app <- fluidPage(
         align-items: flex-start;
         gap: 24px;
         width: 100%;
+        height: calc(100vh - 72px);
+        overflow: hidden;
       }
 
       .coluna-edicao {
         width: 430px;
         min-width: 430px;
         max-width: 430px;
+        height: 100%;
+        overflow-y: auto;
+        padding-bottom: 24px;
       }
 
       .coluna-conteudo {
         flex: 1;
         min-width: 0;
+        height: 100%;
+        overflow-y: auto;
+        padding-right: 12px;
       }
 
       .painel-formulario {
@@ -96,6 +104,24 @@ ui_app <- fluidPage(
       .painel-conteudo h3 {
         margin-top: 0;
         margin-bottom: 18px;
+      }
+
+      @media (max-width: 900px) {
+        .tela-padrao {
+          display: block;
+          height: auto;
+          overflow: visible;
+        }
+
+        .coluna-edicao,
+        .coluna-conteudo {
+          width: 100%;
+          min-width: 0;
+          max-width: none;
+          height: auto;
+          overflow: visible;
+          padding-right: 0;
+        }
       }
     ")),
 
