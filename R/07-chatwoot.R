@@ -105,6 +105,16 @@ normalizar_telefone_whatsapp <- function(telefone) {
   paste0("+", telefone)
 }
 
+chatwoot_timeout_segundos <- function() {
+  timeout <- suppressWarnings(as.numeric(Sys.getenv("CHATWOOT_TIMEOUT_SECONDS", "60")))
+
+  if (is.na(timeout) || timeout <= 0) {
+    return(60)
+  }
+
+  timeout
+}
+
 substituir_variaveis_whatsapp <- function(
     texto,
     empresa,
@@ -216,6 +226,7 @@ enviar_whatsapp_cliente <- function(
   cliente_nome <- as.character(cliente$cliente_nome)
   telefone <- as.character(cliente$telefone_whatsapp)
   arquivos_pdf <- character(0)
+  timeout <- chatwoot_timeout_segundos()
   mensagem <- if (is.null(mensagem) || trimws(mensagem) == "") {
     mensagem_whatsapp_padrao(
       empresa = empresa,
@@ -284,6 +295,7 @@ enviar_whatsapp_cliente <- function(
           phone_number = telefone_normalizado
         )
       ) |>
+      httr2::req_timeout(timeout) |>
       httr2::req_perform()
 
     contato_json <- httr2::resp_body_json(contato_resp)
@@ -316,6 +328,7 @@ enviar_whatsapp_cliente <- function(
           )
         )
       ) |>
+      httr2::req_timeout(timeout) |>
       httr2::req_perform()
 
     conversa_json <- httr2::resp_body_json(conversa_resp)
@@ -342,6 +355,7 @@ enviar_whatsapp_cliente <- function(
           content = mensagem
         )
       ) |>
+      httr2::req_timeout(timeout) |>
       httr2::req_perform()
 
     if (length(arquivos_pdf) > 0) {
@@ -355,6 +369,7 @@ enviar_whatsapp_cliente <- function(
             file_type = "document",
             `attachments[]` = curl::form_file(arquivo_pdf)
           ) |>
+          httr2::req_timeout(timeout) |>
           httr2::req_perform()
       }
     }

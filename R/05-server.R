@@ -3025,7 +3025,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           total = length(processamento$pendentes)
         )
 
-        enviar_whatsapp_apos_tentativa_email(
+        whatsapp_ok <- enviar_whatsapp_apos_tentativa_email(
           empresa = item$empresa,
           cliente = cliente,
           competencia = item$competencia,
@@ -3038,7 +3038,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
         registrar_log_processamento(
           origem = "fila",
-          etapa = "email_whatsapp_ok",
+          etapa = if (isTRUE(whatsapp_ok)) "email_whatsapp_ok" else "email_whatsapp_nao_enviado",
           empresa = item$empresa,
           competencia = item$competencia,
           cliente_nome = item$cliente_nome,
@@ -3527,7 +3527,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           total = nrow(processamento$clientes)
         )
 
-        enviar_whatsapp_apos_tentativa_email(
+        whatsapp_ok <- enviar_whatsapp_apos_tentativa_email(
           empresa = processamento$empresa,
           cliente = cliente,
           competencia = processamento$competencia,
@@ -3540,7 +3540,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
         registrar_log_processamento(
           origem = "disparo",
-          etapa = "email_whatsapp_ok",
+          etapa = if (isTRUE(whatsapp_ok)) "email_whatsapp_ok" else "email_whatsapp_nao_enviado",
           empresa = processamento$empresa,
           competencia = processamento$competencia,
           cliente_nome = cliente$cliente_nome,

@@ -507,7 +507,7 @@ enviar_whatsapp_apos_tentativa_email <- function(
       "automatico_email"
     }
 
-    tryCatch(
+    whatsapp_ok <- tryCatch(
       enviar_whatsapp_cliente(
         empresa = empresa,
         cliente = cliente,
@@ -519,6 +519,7 @@ enviar_whatsapp_apos_tentativa_email <- function(
       ),
       error = function(e) {
         message("WhatsApp nao enviado: ", conditionMessage(e))
+        FALSE
       }
     )
 
@@ -527,7 +528,9 @@ enviar_whatsapp_apos_tentativa_email <- function(
     if (!is.na(intervalo) && intervalo > 0) {
       Sys.sleep(intervalo)
     }
+
+    return(isTRUE(whatsapp_ok))
   }
 
-  TRUE
+  FALSE
 }
