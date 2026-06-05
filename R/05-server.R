@@ -2282,7 +2282,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           ""
         },
         assunto = as.character(assunto),
-        total_pdfs = total_pdfs,
+        total_pdfs = as.character(total_pdfs),
         status = as.character(status),
         erro = as.character(erro)
       )
