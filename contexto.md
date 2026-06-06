@@ -1,131 +1,116 @@
-# CONTEXTO DO PROJETO
+# Contexto do Projeto
 
 ## Nome
 
-Sistema de Disparo Inteligente de Mensagens
+Sistema de Cobrancas por Email e WhatsApp
 
----
+## Objetivo
 
-# Objetivo
+Aplicacao web em R + Shiny para gestao operacional de cobrancas com:
 
-Sistema web desenvolvido em R + Shiny para gerenciamento e envio automatizado de:
+- envio de e-mails com PDFs anexos
+- envio de mensagens WhatsApp via Chatwoot
+- templates HTML por empresa
+- cadastro de clientes
+- cadastro de SMTPs e remetentes
+- fila de envio
+- reprocessamento de erros
+- auditoria de e-mails, WhatsApp e processamento
 
-- E-mails com anexos PDF
-- Mensagens WhatsApp via Chatwoot
-- Templates HTML personalizados por empresa
-- Controle de fila de processamento
-- Dashboard operacional
-- Auditoria completa de envios
+## Estado Atual
 
-O sistema é multiempresa.
+O sistema e **multiempresa em uma unica instalacao**.
 
 Cada empresa possui:
 
-- Clientes próprios
-- SMTP próprio
-- Remetentes próprios
-- Templates próprios
-- Integração Chatwoot própria
-- PDFs próprios
+- clientes proprios
+- PDFs proprios
+- modelos proprios
+- remetentes proprios
+- configuracao Chatwoot propria
 
----
+Porem, ainda existem recursos globais:
 
-# Stack
+- usuarios
+- logs
+- fila
+- configuracoes SMTP/remetentes/Chatwoot em CSVs globais
+- backups
 
-## Linguagem
+Por isso, o projeto ainda nao e SaaS multi-tenant completo.
 
-R
+## Stack
 
-## Framework
-
+```text
+R 4.4.3
 Shiny
-
-## Pacotes Principais
-
-```r
-shiny
+shinythemes
 DT
-dplyr
 readr
-blastula
+dplyr
+stringr
+stringdist
+stringi
+purrr
 glue
 htmltools
+fs
+blastula
 httr2
 jsonlite
-fs
+tibble
+curl
+later
+Docker
+GitHub Actions
+Portainer
+Traefik
 ```
 
----
-
-# Estrutura do Projeto
+## Arquivos R
 
 ```text
-sistema-cobrancas-email/
-
-├── app.R
-
-├── R/
-│   ├── 01-global.R
-│   ├── 02-ui.R
-│   ├── 03-email.R
-│   ├── 04-utils.R
-│   ├── 05-server.R
-│   ├── 06-chatwoot-ui.R
-│   └── 07-chatwoot.R
-
-├── logs/
-│   ├── envios.csv
-│   ├── fila_envio.csv
-│   └── whatsapp.csv
-
-├── _config/
-│   ├── usuarios.csv
-│   ├── remetentes.csv
-│   ├── smtp.csv
-│   └── chatwoot.csv
-
-└── empresas/
+R/01-config.R        Configuracao global, pacotes e pastas
+R/02-dados.R         Funcoes de dados, empresas, PDFs e backups
+R/03-email.R         Envio de e-mail, SMTP, rotacao, retry e WhatsApp pos-email
+R/04-ui.R            Interface Shiny
+R/05-server.R        Regras de negocio e eventos da interface
+R/06-auth.R          Login simples
+R/07-chatwoot.R      Chatwoot e WhatsApp
+R/08-email-worker.R  Worker de e-mail por subprocesso
 ```
 
----
+## Persistencia
 
-# Arquitetura
+O sistema atual nao usa banco de dados.
 
-O sistema NÃO utiliza banco de dados.
-
-Toda persistência é feita através de arquivos CSV.
-
----
-
-# Estrutura das Empresas
-
-Cada empresa possui uma pasta própria.
-
-Exemplo:
+Persistencia em CSV e arquivos:
 
 ```text
-awe/
-
-├── destinatarios.csv
-
-├── modelos/
-│   ├── assunto.txt
-│   ├── corpo_email.txt
-│   └── template_html.html
-
-└── PDFs/
-    ├── 2026-04/
-    ├── 2026-05/
-    └── ...
+_config/
+logs/
+backups/
+empresa/destinatarios.csv
+empresa/modelos/
+empresa/clientes/
 ```
 
----
+## Estrutura de Empresa
 
-# Funcionalidades Implementadas
+```text
+empresa/
+|-- destinatarios.csv
+|-- modelos/
+|   |-- assunto.txt
+|   |-- corpo_email.txt
+|   `-- template_html.html
+`-- clientes/
+    `-- 2026-06/
+        `-- Cliente/
+            `-- arquivo.pdf
+```
 
-# Login
-
-Autenticação simples.
+## Login
 
 Arquivo:
 
@@ -133,48 +118,26 @@ Arquivo:
 _config/usuarios.csv
 ```
 
-Estrutura:
+Campos:
 
 ```csv
 usuario,senha,ativo
-admin,admin123,TRUE
 ```
 
-Funcionalidades:
-
-- Login por usuário/senha
-- Enter no campo senha executa login
-- Controle de sessão
-
----
-
-# Dashboard
-
-KPIs:
-
-- Empresas
-- Clientes Ativos
-- Envios OK
-- Erros
-- Fila Pendente
-
-Tabelas:
-
-- Envios por empresa
-- Últimos envios
-
-Origem:
+Variaveis para usuario inicial:
 
 ```text
-logs/envios.csv
-logs/fila_envio.csv
+APP_ADMIN_USER
+APP_ADMIN_PASSWORD
 ```
 
----
+Limitacao atual:
 
-# Clientes
+- senha em texto
+- sem perfil de permissao
+- sem tenant por usuario
 
-CRUD completo.
+## Clientes
 
 Arquivo:
 
@@ -185,85 +148,36 @@ empresa/destinatarios.csv
 Campos:
 
 ```csv
-cliente_nome
-email_principal
-email_copias
-telefone_whatsapp
-ativo
-observacao
+cliente_nome,email_principal,email_copias,telefone_whatsapp,ativo,observacao
 ```
 
 Recursos:
 
-- Inclusão
-- Edição
-- Exclusão
-- Importação CSV
+- cadastro
+- edicao
+- exclusao
+- importacao CSV
+- envio WhatsApp manual
+- mascara de telefone na tela
+- preservacao de quantidade de linhas na tabela
 
-Importante:
-
-Ao salvar, a tabela precisa ser atualizada imediatamente.
-
-Problema já identificado anteriormente:
-a tela salvava corretamente mas não atualizava visualmente.
-
----
-
-# Remetentes
-
-Arquivo:
-
-```text
-_config/remetentes.csv
-```
+## PDFs
 
 Estrutura:
 
-```csv
-empresa_id
-empresa_nome
-email_remetente
-nome_remetente
-smtp_id
-ativo
-```
-
-Função:
-
-Relacionar empresa ao SMTP utilizado.
-
----
-
-# SMTP
-
-Arquivo:
-
 ```text
-_config/smtp.csv
+empresa/clientes/competencia/cliente/
 ```
 
-Estrutura:
+Recursos:
 
-```csv
-smtp_id
-email
-host
-port
-use_ssl
-usuario
-senha
-observacao
-```
+- upload direto por cliente
+- importacao ZIP por pastas
+- listagem por competencia
+- backup ZIP antes de remover competencias antigas
+- remocao mantendo ultimas X competencias
 
-Recursos implementados:
-
-- CRUD
-- Teste SMTP
-- SSL configurável
-
----
-
-# Modelos
+## Modelos
 
 Arquivos:
 
@@ -273,360 +187,73 @@ empresa/modelos/corpo_email.txt
 empresa/modelos/template_html.html
 ```
 
----
-
-# Placeholders Disponíveis
-
-Os modelos podem utilizar:
+Chaves disponiveis:
 
 ```text
 {{cliente_nome}}
+{{cliente_email}}
+{{email_principal}}
+{{cliente_whatsapp}}
 {{empresa_nome}}
+{{empresa_whatsapp}}
 {{mes_referencia}}
 {{ano_referencia}}
 {{competencia_pdfs}}
 {{corpo_email}}
 ```
 
----
+## SMTP e Remetentes
 
-# Template HTML
-
-Cada empresa possui template próprio.
-
-Exemplo:
-
-```html
-<!DOCTYPE html>
-<html>
-<body>
-
-<div>
-{{corpo_email}}
-</div>
-
-</body>
-</html>
-```
-
----
-
-# Preview do Template
-
-Implementado.
-
-Na aba Modelos existe botão:
+Arquivos:
 
 ```text
-Visualizar no Template
+_config/smtp.csv
+_config/remetentes.csv
+_config/smtp_rotacao.csv
 ```
 
-O preview deve:
+Recursos:
 
-- Respeitar a empresa selecionada
-- Carregar template da empresa
-- Renderizar HTML
-- Substituir placeholders
+- cadastro de SMTP
+- teste SMTP
+- remetente vinculado a empresa
+- `SMTP ID` como lista fechada na tela Remetentes
+- rotacao de SMTP/remetente em blocos de 10
+- retry com outro SMTP ativo da empresa quando o envio falha
 
----
-
-# E-mails
-
-Arquivo principal:
+Eventos de processamento:
 
 ```text
-R/03-email.R
+email_smtp_subprocesso_inicio
+email_smtp_subprocesso_ok
+email_smtp_subprocesso_erro
+email_smtp_send_inicio
+email_smtp_send_erro
+email_smtp_retry
+email_smtp_send_ok
 ```
 
-Função principal:
+## Envio de E-mail
+
+Funcao principal:
 
 ```r
 enviar_email_cliente()
 ```
 
-Responsabilidades:
-
-- Carregar remetente
-- Carregar SMTP
-- Carregar modelo
-- Carregar template HTML
-- Substituir placeholders
-- Buscar PDFs
-- Anexar PDFs
-- Enviar e-mail
-- Registrar logs
-
----
-
-# Problemas já Resolvidos
-
-## HTML aparecendo como texto
-
-Errado:
-
-```r
-compose_email(
-  body = corpo_html
-)
-```
-
-Correto:
-
-```r
-compose_email(
-  body = htmltools::HTML(corpo_html)
-)
-```
-
----
-
-## Placeholders não substituídos
-
-Foi necessário utilizar:
-
-```r
-gsub(..., fixed = TRUE)
-```
-
----
-
-## Variáveis entre chaves
-
-Exemplo:
+O envio em interface usa subprocesso:
 
 ```text
-{Abril}/{2026}
+R/08-email-worker.R
 ```
 
-Problema ocorreu após uso de placeholders antigos.
+Motivo:
 
-Hoje o padrão correto é:
+- evitar travamento da interface
+- aplicar timeout
+- isolar falhas SMTP
 
-```text
-{{mes_referencia}}
-{{ano_referencia}}
-```
-
-A substituição ocorre antes da montagem do template.
-
----
-
-# PDFs
-
-Função:
-
-```r
-buscar_pdfs_cliente()
-```
-
-Objetivo:
-
-Localizar PDFs da competência selecionada.
-
-Exemplo:
-
-```text
-empresa/PDFs/2026-05/
-```
-
-Retorno:
-
-```r
-list(
-  arquivos_pdf = ...
-)
-```
-
----
-
-# Fila de Envio
-
-Implementada.
-
-Arquivo:
-
-```text
-logs/fila_envio.csv
-```
-
-Campos:
-
-```csv
-empresa
-competencia
-cliente_nome
-email_principal
-status
-data_inclusao
-```
-
-Status:
-
-```text
-pendente
-enviado
-erro
-```
-
----
-
-# Fluxo da Fila
-
-## Gerar Fila
-
-Localiza clientes válidos.
-
-Insere registros em:
-
-```text
-logs/fila_envio.csv
-```
-
----
-
-## Processar Fila
-
-Percorre todos os pendentes.
-
-Executa:
-
-```r
-enviar_email_cliente()
-```
-
-Atualiza status.
-
----
-
-## Limpar Fila
-
-Remove registros.
-
----
-
-# Logs
-
-Arquivo:
-
-```text
-logs/envios.csv
-```
-
-Campos:
-
-```csv
-data_hora
-empresa
-cliente_nome
-status
-mensagem
-```
-
----
-
-# Chatwoot
-
-Integração validada.
-
-Arquivo:
-
-```text
-_config/chatwoot.csv
-```
-
-Estrutura:
-
-```csv
-chatwoot_id
-empresa_id
-url_base
-account_id
-inbox_identifier
-api_access_token
-ativo
-observacao
-```
-
----
-
-# Funcionalidades Chatwoot Implementadas
-
-## CRUD
-
-- Novo
-- Salvar
-- Excluir
-
----
-
-## Teste de Envio
-
-Implementado.
-
-Fluxo:
-
-1. Informar telefone
-2. Informar mensagem
-3. Enviar via API Chatwoot
-
-Resultado:
-
-Mensagem recebida corretamente no Chatwoot.
-
----
-
-# Configuração Validada
-
-Exemplo:
-
-```text
-URL:
-https://chat.exemplo.com
-
-Account:
-1
-
-Inbox Identifier:
-xxxxxxxxxxxxxxxx
-
-Token:
-xxxxxxxxxxxxxxxx
-```
-
----
-
-# Situação Atual do Chatwoot
-
-Funcionando.
-
-Já foi validado:
-
-- Autenticação
-- Inbox
-- API
-- Recebimento de mensagens
-
----
-
-# Próxima Implementação
-
-# WhatsApp por Cliente
-
-Objetivo:
-
-Permitir envio direto para o cliente cadastrado.
-
-Utilizar:
-
-```csv
-telefone_whatsapp
-```
-
-do cadastro de clientes.
-
----
-
-# Função Planejada
+## WhatsApp / Chatwoot
 
 Arquivo:
 
@@ -634,126 +261,143 @@ Arquivo:
 R/07-chatwoot.R
 ```
 
-Função:
+Arquivo de configuracao:
 
-```r
-enviar_whatsapp_cliente(
-    empresa,
-    cliente,
-    mensagem
-)
+```text
+_config/chatwoot.csv
 ```
 
-Responsabilidades:
+Recursos:
 
-- Carregar configuração Chatwoot
-- Ler telefone do cliente
-- Enviar mensagem
-- Registrar log
+- configuracao por empresa
+- teste de envio
+- envio manual por cliente
+- envio automatico apos tentativa de e-mail
+- mensagem para e-mail enviado
+- mensagem para e-mail com falha
+- envio de PDFs pelo WhatsApp quando habilitado
+- timeout por `CHATWOOT_TIMEOUT_SECONDS`
+- log em `logs/whatsapp.csv`
 
----
-
-# Logs WhatsApp
+## Fila
 
 Arquivo:
 
 ```text
-logs/whatsapp.csv
+logs/fila_envio.csv
 ```
 
-Estrutura planejada:
+Campos:
 
 ```csv
-data_hora
-empresa
-cliente_nome
-telefone
-mensagem
-status
+empresa,competencia,cliente_nome,email_principal,total_pdfs,status,data_inclusao
+```
+
+Status:
+
+```text
+pendente
+processando
+enviado
 erro
 ```
 
----
+Recursos:
 
-# Evolução Planejada
+- gerar fila
+- processar fila
+- reprocessar erros
+- limpar fila
+- filtrar status exibidos
+- limpar logs antes de processar
 
-## Fase 1
+## Logs
 
-Envio WhatsApp individual.
-
----
-
-## Fase 2
-
-Botão WhatsApp na aba Clientes.
-
----
-
-## Fase 3
-
-Logs WhatsApp.
-
----
-
-## Fase 4
-
-KPIs WhatsApp no Dashboard.
-
----
-
-## Fase 5
-
-Integração automática:
-
-Após envio do e-mail:
+Arquivos:
 
 ```text
-E-mail enviado
-↓
-WhatsApp enviado
-↓
-Log registrado
+logs/envios.csv
+logs/whatsapp.csv
+logs/processamento.csv
+logs/fila_envio.csv
 ```
 
----
+Tela Logs:
 
-# Regras Técnicas
+- filtro por empresa
+- filtro por competencia
+- filtro por cliente
+- filtro por status
+- filtro por origem
+- filtro por tipo de erro
+- filtro por resultado por cliente
+- filtro apenas problemas
+- filtro ultimo resultado por cliente
+- resumo por cliente
+- reenvio de falhas
+- reprocessamento de erros da fila
+- limpeza de logs com confirmacao
 
-Sempre usar:
+## Deploy
 
-```r
-show_col_types = FALSE
+Dominio atual:
+
+```text
+cobrancas.wrtec.com.br
 ```
 
----
+Imagem:
 
-Sempre usar:
-
-```r
-col_types = cols(.default = "c")
+```text
+ghcr.io/wittemberg/sistema-cobrancas-email
 ```
 
-ao carregar CSVs.
+Stack:
 
-Motivo:
-
-Evitar problemas de tipagem automática.
-
----
-
-Para HTML sempre usar:
-
-```r
-htmltools::HTML(...)
+```text
+docker-stack.portainer.yml
 ```
 
----
+Workflow:
 
-O sistema deve permanecer:
+```text
+.github/workflows/docker-portainer.yml
+```
 
-- Multiempresa
-- Modular
-- Baseado em CSV
-- Sem banco de dados
-- Compatível com Shiny local
-- Compatível com futura migração para PostgreSQL
+## Limitacoes Atuais
+
+- sem banco de dados
+- CSVs globais
+- fila global
+- logs globais
+- usuarios globais
+- sem isolamento real por tenant
+- senhas em texto
+- dados operacionais montados por empresa fixa na stack
+- Dockerfile ainda copia pastas de empresas de exemplo/runtime
+
+## Direcao Tecnica
+
+Curto prazo:
+
+- manter multiempresa por filesystem
+- melhorar seguranca da autenticacao
+- criar camada de caminho por tenant
+- remover empresas fixas do Dockerfile/stack
+
+Medio prazo:
+
+- estrutura `data/tenants/<tenant_id>/`
+- usuarios vinculados a tenant
+- logs e fila por tenant
+- painel admin de tenants
+
+Longo prazo:
+
+- PostgreSQL
+- storage S3/MinIO para PDFs
+- worker separado da UI
+- billing/plano/limites
+- subdominio por tenant
+
+Ver [DOCUMENTACAO-SAAS.md](DOCUMENTACAO-SAAS.md).

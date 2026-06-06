@@ -1,27 +1,130 @@
 # Deploy Portainer WRTEC
 
-## Stack
+Este documento descreve o deploy atual da aplicacao no Portainer/Traefik.
 
-Use o arquivo `docker-stack.portainer.yml` no Portainer.
+## Arquivos Envolvidos
 
-A stack foi preparada para o Traefik informado:
+- `Dockerfile`
+- `docker-stack.portainer.yml`
+- `.github/workflows/docker-portainer.yml`
 
-- rede externa: `interna`
-- entrypoint HTTPS: `websecure`
-- certresolver: `letsencryptresolver`
-- dominio: `cobrancas.wrtec.com.br`
-- porta interna da aplicacao: `3838`
+## Imagem Docker
 
-## Pastas persistentes
+Imagem publicada no GHCR:
 
-A aplicacao usa arquivos CSV e PDFs. A stack usa bind mounts em `/root/sistema-cobrancas-email`, facilitando backup e copia manual dos dados:
+```text
+ghcr.io/wittemberg/sistema-cobrancas-email:latest
+```
 
-- `/root/sistema-cobrancas-email/config` em `/srv/shiny-server/_config`
-- `/root/sistema-cobrancas-email/logs` em `/srv/shiny-server/logs`
-- `/root/sistema-cobrancas-email/backups` em `/srv/shiny-server/backups`
-- `/root/sistema-cobrancas-email/awe` em `/srv/shiny-server/awe`
-- `/root/sistema-cobrancas-email/tecnoteam` em `/srv/shiny-server/tecnoteam`
-- `/root/sistema-cobrancas-email/wr-tecnologia` em `/srv/shiny-server/wr-tecnologia`
+O workflow tambem publica uma tag com o SHA do commit.
+
+## Build e Deploy Automatico
+
+Workflow:
+
+```text
+.github/workflows/docker-portainer.yml
+```
+
+Fluxo:
+
+1. push na branch `main`
+2. build da imagem Docker
+3. push para GHCR
+4. chamada opcional do webhook do Portainer
+
+O webhook do Portainer so e chamado quando:
+
+- o secret `ENABLE_PORTAINER_DEPLOY` esta com valor `true`; ou
+- o workflow manual e executado com `trigger_portainer=true`.
+
+## Secrets do GitHub
+
+Crie no repositorio:
+
+```text
+PORTAINER_WEBHOOK_URL
+ENABLE_PORTAINER_DEPLOY
+```
+
+Valores:
+
+- `PORTAINER_WEBHOOK_URL`: URL do webhook da stack no Portainer.
+- `ENABLE_PORTAINER_DEPLOY`: use `true` para ativar deploy automatico apos push na `main`.
+
+## Stack Portainer
+
+Arquivo:
+
+```text
+docker-stack.portainer.yml
+```
+
+Servico:
+
+```text
+cobrancas-email
+```
+
+Dominio:
+
+```text
+cobrancas.wrtec.com.br
+```
+
+Rede externa:
+
+```text
+interna
+```
+
+Porta interna:
+
+```text
+3838
+```
+
+## Traefik
+
+Labels principais:
+
+```yaml
+traefik.enable=true
+traefik.docker.network=interna
+traefik.http.routers.cobrancas-email.rule=Host(`cobrancas.wrtec.com.br`)
+traefik.http.routers.cobrancas-email.entrypoints=websecure
+traefik.http.routers.cobrancas-email.tls=true
+traefik.http.routers.cobrancas-email.tls.certresolver=letsencryptresolver
+traefik.http.services.cobrancas-email.loadbalancer.server.port=3838
+```
+
+## Variaveis da Stack
+
+Obrigatorias/recomendadas:
+
+```text
+TZ=America/Sao_Paulo
+APP_ADMIN_USER=admin
+APP_ADMIN_PASSWORD=<senha_inicial>
+CHATWOOT_TIMEOUT_SECONDS=60
+```
+
+`APP_ADMIN_PASSWORD` e obrigatoria no primeiro deploy quando `_config/usuarios.csv` ainda nao existe.
+
+## Volumes Persistentes
+
+A aplicacao usa CSVs e PDFs. Por isso, a stack monta bind mounts em `/root/sistema-cobrancas-email`.
+
+Montagens atuais:
+
+```yaml
+- /root/sistema-cobrancas-email/config:/srv/shiny-server/_config
+- /root/sistema-cobrancas-email/logs:/srv/shiny-server/logs
+- /root/sistema-cobrancas-email/backups:/srv/shiny-server/backups
+- /root/sistema-cobrancas-email/awe:/srv/shiny-server/awe
+- /root/sistema-cobrancas-email/tecnoteam:/srv/shiny-server/tecnoteam
+- /root/sistema-cobrancas-email/wr-tecnologia:/srv/shiny-server/wr-tecnologia
+```
 
 Crie antes do deploy:
 
@@ -31,25 +134,50 @@ mkdir -p /root/sistema-cobrancas-email/{awe,tecnoteam,wr-tecnologia}/modelos
 mkdir -p /root/sistema-cobrancas-email/{awe,tecnoteam,wr-tecnologia}/clientes
 ```
 
-Copie para essas pastas os arquivos que nao entram no Git, especialmente `config/*.csv`, `destinatarios.csv`, `modelos/*` e `clientes/*`.
+Copie para essas pastas:
 
-## GitHub Actions
+- `config/*.csv`
+- `empresa/destinatarios.csv`
+- `empresa/modelos/*`
+- `empresa/clientes/*`
 
-O workflow `.github/workflows/docker-portainer.yml` publica a imagem no GHCR a cada push na branch `main`.
+## GHCR no Portainer
 
-O webhook do Portainer so e chamado quando uma destas condicoes for verdadeira:
+A stack usa imagem privada/publicada no GHCR. Se o repositorio/imagem estiver privado, configure o registry `ghcr.io` no Portainer.
 
-- variavel do repositorio `ENABLE_PORTAINER_DEPLOY=true` em pushes na `main`;
-- execucao manual do workflow com `trigger_portainer=true`.
+## Atualizacao Manual
 
-## Secrets e variaveis
+No Portainer:
 
-Crie no repositorio GitHub:
+1. abra a stack `sistema-cobrancas-email`
+2. use `Pull and redeploy`
+3. mantenha `Re-pull image` ligado
+4. se necessario, habilite `Force redeployment`
 
-- Secret `PORTAINER_WEBHOOK_URL`: URL do webhook da stack no Portainer.
-- Secret `ENABLE_PORTAINER_DEPLOY`: use `false` ou nao crie enquanto o deploy automatico nao deve rodar; altere para `true` quando quiser atualizar a stack a cada push na `main`.
+## Limpeza e Backup
 
-Na stack Portainer, defina antes do primeiro deploy:
+Backups da aplicacao sao gravados em:
 
-- `APP_ADMIN_USER`: usuario inicial, padrao `admin`.
-- `APP_ADMIN_PASSWORD`: senha inicial gravada em `_config/usuarios.csv` quando o volume ainda estiver vazio.
+```text
+/root/sistema-cobrancas-email/backups
+```
+
+Antes de limpar logs pelo app, a rotina chama backup seguro.
+
+## Observacao Para SaaS
+
+Para SaaS multi-tenant, a stack deve mudar. As montagens por empresa fixa (`awe`, `tecnoteam`, `wr-tecnologia`) nao escalam.
+
+Modelo recomendado:
+
+```yaml
+- /root/sistema-cobrancas-email/data:/srv/shiny-server/data
+```
+
+E a aplicacao passaria a gravar dados em:
+
+```text
+data/tenants/<tenant_id>/
+```
+
+Detalhes em [DOCUMENTACAO-SAAS.md](DOCUMENTACAO-SAAS.md).
