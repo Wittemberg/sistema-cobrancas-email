@@ -321,6 +321,12 @@ ui_app <- fluidPage(
               value = FALSE
             ),
 
+            checkboxInput(
+              "fila_limpar_logs_antes_processar",
+              "Limpar logs antes de processar",
+              value = FALSE
+            ),
+
             actionButton(
               "gerar_fila",
               "Gerar Fila",
@@ -933,6 +939,12 @@ ui_app <- fluidPage(
               value = FALSE
             ),
 
+            checkboxInput(
+              "logs_ultimo_resultado",
+              "Mostrar apenas o ultimo resultado por cliente",
+              value = TRUE
+            ),
+
             actionButton("atualizar_logs", "Atualizar Logs"),
 
             hr(),
@@ -948,6 +960,19 @@ ui_app <- fluidPage(
             actionButton(
               "reprocessar_erros_fila_logs",
               "Reprocessar Erros da Fila"
+            ),
+
+            br(), br(),
+
+            checkboxInput(
+              "confirmar_limpar_logs",
+              "Confirmo limpar os logs",
+              value = FALSE
+            ),
+
+            actionButton(
+              "limpar_logs",
+              "Limpar Logs"
             ),
 
             br(), br(),

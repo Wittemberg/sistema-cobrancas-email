@@ -2346,6 +2346,24 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     )
   }
 
+  limpar_arquivos_logs <- function() {
+    arquivos <- c(
+      file.path(pasta_raiz, "logs", "envios.csv"),
+      caminho_log_whatsapp(),
+      caminho_log_processamento()
+    )
+
+    criar_backup_seguro()
+
+    removidos <- arquivos[file.exists(arquivos)]
+
+    if (length(removidos) > 0) {
+      file.remove(removidos)
+    }
+
+    length(removidos)
+  }
+
   texto_contem_filtro <- function(dados, filtro) {
     if (is.null(filtro) || length(filtro) == 0) {
       return(rep(TRUE, nrow(dados)))
@@ -2364,6 +2382,29 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     )
 
     grepl(filtro, texto, ignore.case = TRUE, fixed = TRUE)
+  }
+
+  manter_ultimo_log_por_cliente <- function(dados, coluna_competencia = "competencia") {
+    if (
+      !isTRUE(input$logs_ultimo_resultado) ||
+        nrow(dados) == 0 ||
+        !"data_hora" %in% names(dados) ||
+        !"cliente_nome" %in% names(dados)
+    ) {
+      return(dados)
+    }
+
+    grupos <- intersect(c("empresa", coluna_competencia, "cliente_nome"), names(dados))
+
+    if (length(grupos) == 0) {
+      return(dados)
+    }
+
+    dados |>
+      dplyr::arrange(dplyr::desc(.data$data_hora)) |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(grupos))) |>
+      dplyr::slice(1) |>
+      dplyr::ungroup()
   }
 
   filtro_tipo_erro <- function(dados) {
@@ -2443,6 +2484,10 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     }
 
     dados <- dados[filtro_tipo_erro(dados), , drop = FALSE]
+
+    if (!identical(coluna_status, "etapa")) {
+      dados <- manter_ultimo_log_por_cliente(dados, coluna_competencia = coluna_competencia)
+    }
 
     if (isTRUE(input$logs_apenas_problemas)) {
       if (coluna_status %in% names(dados)) {
@@ -2536,6 +2581,9 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
     emails <- carregar_logs_dados()
     whatsapps <- carregar_logs_whatsapp_dados()
+
+    emails <- manter_ultimo_log_por_cliente(emails, coluna_competencia = "competencia_pdfs")
+    whatsapps <- manter_ultimo_log_por_cliente(whatsapps, coluna_competencia = "competencia")
 
     clientes_email <- emails |>
       dplyr::select(
@@ -2759,6 +2807,17 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     logs_msg(paste(resultado, collapse = "\n"))
   })
 
+  observeEvent(input$limpar_logs, {
+    if (!isTRUE(input$confirmar_limpar_logs)) {
+      logs_msg("Marque a confirmação antes de limpar os logs.")
+      return()
+    }
+
+    removidos <- limpar_arquivos_logs()
+    atualizar_fila()
+    logs_msg(paste("Logs limpos com sucesso. Arquivos removidos:", removidos))
+  })
+
   output$logs_msg <- renderText({
     logs_msg()
   })
@@ -2946,6 +3005,11 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       fila$status[pendentes] <- "pendente"
       salvar_fila(fila)
       atualizar_fila()
+    }
+
+    if (isTRUE(input$fila_limpar_logs_antes_processar)) {
+      removidos_logs <- limpar_arquivos_logs()
+      logs_msg(paste("Logs limpos antes da fila. Arquivos removidos:", removidos_logs))
     }
 
     criar_backup_seguro()
