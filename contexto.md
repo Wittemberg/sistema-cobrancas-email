@@ -177,6 +177,12 @@ Recursos:
 - backup ZIP antes de remover competencias antigas
 - remocao mantendo ultimas X competencias
 
+Regra importante:
+
+- a busca de PDFs exige correspondencia normalizada exata entre `cliente_nome` e nome da pasta do cliente
+- acentos, pontuacao e espacos sao normalizados
+- nao ha associacao por "pasta mais parecida", para evitar fila indevida quando uma competencia possui menos pastas do que clientes cadastrados
+
 ## Modelos
 
 Arquivos:

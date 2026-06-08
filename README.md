@@ -179,6 +179,8 @@ Os arquivos sao gravados em:
 empresa/clientes/competencia/cliente/
 ```
 
+Ao gerar fila ou disparo, a pasta do cliente precisa corresponder ao nome do cadastro apos normalizacao de acentos, pontuacao e espacos. O sistema nao associa mais um cliente a uma pasta apenas por semelhanca, para evitar envios indevidos quando o ZIP contem menos clientes do que a base cadastrada.
+
 Ao remover competencias antigas, o sistema cria backup ZIP individual em:
 
 ```text

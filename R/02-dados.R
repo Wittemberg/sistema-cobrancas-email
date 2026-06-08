@@ -164,19 +164,33 @@ buscar_pdfs_cliente <- function(
     recurse = FALSE
   )
 
+  if (length(pastas_clientes) == 0) {
+    return(
+      list(
+        arquivos_pdf = character(0),
+        pasta_encontrada = NA_character_,
+        total_pdfs = 0,
+        status_pdfs = "Sem pastas de clientes"
+      )
+    )
+  }
+
   nome_ref <- normalizar_nome(cliente_nome)
+  nomes_pastas <- normalizar_nome(basename(pastas_clientes))
+  idx_exato <- which(nomes_pastas == nome_ref)
 
-  distancias <- stringdist(
-    nome_ref,
-    normalizar_nome(
-      basename(pastas_clientes)
-    ),
-    method = "jw"
-  )
+  if (length(idx_exato) == 0) {
+    return(
+      list(
+        arquivos_pdf = character(0),
+        pasta_encontrada = NA_character_,
+        total_pdfs = 0,
+        status_pdfs = "Pasta do cliente nao encontrada"
+      )
+    )
+  }
 
-  idx <- which.min(distancias)
-
-  pasta_cliente <- pastas_clientes[idx]
+  pasta_cliente <- pastas_clientes[idx_exato[1]]
 
   arquivos_pdf <- dir_ls(
     pasta_cliente,
