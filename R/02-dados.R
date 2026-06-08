@@ -7,7 +7,7 @@ normalizar_nome <- function(texto) {
   texto |>
     stringi::stri_trans_general("Latin-ASCII") |>
     toupper() |>
-    str_replace_all("[^A-Z0-9 ]", "") |>
+    str_replace_all("[^A-Z0-9]+", " ") |>
     str_squish()
 }
 
@@ -178,8 +178,10 @@ buscar_pdfs_cliente <- function(
   nome_ref <- normalizar_nome(cliente_nome)
   nomes_pastas <- normalizar_nome(basename(pastas_clientes))
   idx_exato <- which(nomes_pastas == nome_ref)
+  idx_prefixo <- which(startsWith(nomes_pastas, paste0(nome_ref, " ")))
+  idx_match <- unique(c(idx_exato, idx_prefixo))
 
-  if (length(idx_exato) == 0) {
+  if (length(idx_match) == 0) {
     return(
       list(
         arquivos_pdf = character(0),
@@ -190,7 +192,18 @@ buscar_pdfs_cliente <- function(
     )
   }
 
-  pasta_cliente <- pastas_clientes[idx_exato[1]]
+  if (length(idx_match) > 1) {
+    return(
+      list(
+        arquivos_pdf = character(0),
+        pasta_encontrada = paste(basename(pastas_clientes[idx_match]), collapse = " | "),
+        total_pdfs = 0,
+        status_pdfs = "Mais de uma pasta possivel para o cliente"
+      )
+    )
+  }
+
+  pasta_cliente <- pastas_clientes[idx_match[1]]
 
   arquivos_pdf <- dir_ls(
     pasta_cliente,

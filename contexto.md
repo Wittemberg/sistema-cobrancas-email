@@ -179,7 +179,7 @@ Recursos:
 
 Regra importante:
 
-- a busca de PDFs exige correspondencia normalizada exata entre `cliente_nome` e nome da pasta do cliente
+- a busca de PDFs exige correspondencia normalizada exata entre `cliente_nome` e nome da pasta do cliente, ou pasta iniciando com o nome do cliente seguido de sufixo
 - acentos, pontuacao e espacos sao normalizados
 - nao ha associacao por "pasta mais parecida", para evitar fila indevida quando uma competencia possui menos pastas do que clientes cadastrados
 
