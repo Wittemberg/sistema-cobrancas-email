@@ -357,6 +357,35 @@ ui_app <- fluidPage(
               "Limpar Fila"
             ),
 
+            hr(),
+
+            h4("Editar Item"),
+
+            uiOutput("ui_fila_editar_cliente"),
+
+            textInput(
+              "fila_editar_pasta_pdf",
+              "Pasta PDF",
+              value = ""
+            ),
+
+            selectInput(
+              "fila_editar_status",
+              "Status",
+              choices = c("pendente", "processando", "erro", "enviado"),
+              selected = "pendente"
+            ),
+
+            actionButton(
+              "salvar_item_fila",
+              "Salvar Item"
+            ),
+
+            actionButton(
+              "excluir_item_fila",
+              "Excluir Item"
+            ),
+
             br(),
             br(),
 
@@ -519,6 +548,25 @@ ui_app <- fluidPage(
 
             hr(),
 
+            h4("Associar Pasta"),
+
+            uiOutput("ui_pdf_pasta_sem_cliente"),
+
+            uiOutput("ui_pdf_cliente_alias"),
+
+            actionButton(
+              "associar_pasta_pdf",
+              "Salvar Associacao"
+            ),
+
+            actionButton(
+              "associar_pasta_pdf_fila",
+              "Associar e Adicionar a Fila",
+              class = "btn-primary"
+            ),
+
+            hr(),
+
             numericInput(
               "pdf_reter_meses",
               "Manter últimas competências",
@@ -552,7 +600,11 @@ ui_app <- fluidPage(
 
             h3("PDFs da Competência"),
 
-            DTOutput("pdf_tabela")
+            DTOutput("pdf_tabela"),
+
+            h3("Pastas sem cliente associado"),
+
+            DTOutput("pdf_pendencias_tabela")
           )
         )
       )

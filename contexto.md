@@ -182,6 +182,8 @@ Regra importante:
 - a busca de PDFs exige correspondencia normalizada exata entre `cliente_nome` e nome da pasta do cliente, ou pasta iniciando com o nome do cliente seguido de sufixo
 - acentos, pontuacao e espacos sao normalizados
 - nao ha associacao por "pasta mais parecida", para evitar fila indevida quando uma competencia possui menos pastas do que clientes cadastrados
+- pastas sem associacao aparecem na aba PDFs e podem ser vinculadas manualmente a um cliente
+- o vinculo manual fica salvo em `_config/pdf_aliases.csv`, permitindo que o sistema aprenda o padrao da pasta
 
 ## Modelos
 
@@ -314,6 +316,7 @@ Recursos:
 - processar fila
 - reprocessar erros
 - limpar fila
+- editar ou excluir itens da fila
 - filtrar status exibidos
 - limpar logs antes de processar
 

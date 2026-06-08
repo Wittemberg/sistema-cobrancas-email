@@ -134,6 +134,7 @@ enviar_email_cliente_subprocesso <- function(
     competencia,
     mes_email,
     ano_email,
+    pasta_pdf = NULL,
     log_callback = NULL,
     smtp_timeout_segundos = 120
 ) {
@@ -165,6 +166,7 @@ enviar_email_cliente_subprocesso <- function(
     competencia = as.character(competencia),
     mes_email = as.character(mes_email),
     ano_email = as.character(ano_email),
+    pasta_pdf = if (is.null(pasta_pdf)) "" else as.character(pasta_pdf),
     cliente = as.list(cliente[1, , drop = FALSE])
   )
 
@@ -220,6 +222,7 @@ enviar_email_cliente <- function(
     ano_email,
     enviar_whatsapp = FALSE,
     whatsapp_intervalo_segundos = 0,
+    pasta_pdf = NULL,
     log_callback = NULL,
     smtp_timeout_segundos = 120,
     usar_subprocesso = TRUE
@@ -247,6 +250,7 @@ enviar_email_cliente <- function(
       competencia = competencia,
       mes_email = mes_email,
       ano_email = ano_email,
+      pasta_pdf = pasta_pdf,
       log_callback = log_callback,
       smtp_timeout_segundos = smtp_timeout_segundos
     ))
@@ -408,7 +412,8 @@ enviar_email_cliente <- function(
   verificacao <- buscar_pdfs_cliente(
     empresa,
     competencia,
-    cliente$cliente_nome
+    cliente$cliente_nome,
+    pasta_pdf = pasta_pdf
   )
 
   registrar_etapa_email("anexando_pdfs", paste("PDFs:", length(verificacao$arquivos_pdf)))
@@ -547,7 +552,8 @@ enviar_email_cliente <- function(
         origem = "automatico_email",
         competencia = competencia,
         mes_email = mes_email,
-        ano_email = ano_email
+        ano_email = ano_email,
+        pasta_pdf = pasta_pdf
       ),
       error = function(e) {
         message("WhatsApp não enviado: ", conditionMessage(e))
@@ -572,6 +578,7 @@ enviar_whatsapp_apos_tentativa_email <- function(
     ano_email,
     enviar_whatsapp = FALSE,
     whatsapp_intervalo_segundos = 0,
+    pasta_pdf = NULL,
     email_status = "email_enviado"
 ) {
   if (isTRUE(enviar_whatsapp) && exists("enviar_whatsapp_cliente")) {
@@ -594,6 +601,7 @@ enviar_whatsapp_apos_tentativa_email <- function(
         competencia = competencia,
         mes_email = mes_email,
         ano_email = ano_email,
+        pasta_pdf = pasta_pdf,
         email_status = email_status
       ),
       error = function(e) {

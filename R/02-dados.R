@@ -23,6 +23,97 @@ normalizar_telefone_br <- function(telefone) {
   telefone
 }
 
+caminho_pdf_aliases <- function() {
+  file.path(pasta_raiz, "_config", "pdf_aliases.csv")
+}
+
+carregar_pdf_aliases <- function() {
+  caminho <- caminho_pdf_aliases()
+
+  if (!file.exists(caminho)) {
+    return(
+      tibble::tibble(
+        empresa = character(),
+        pasta_pdf = character(),
+        cliente_nome = character(),
+        data_atualizacao = character()
+      )
+    )
+  }
+
+  dados <- readr::read_csv(
+    caminho,
+    show_col_types = FALSE,
+    col_types = readr::cols(.default = "c")
+  )
+
+  colunas <- c("empresa", "pasta_pdf", "cliente_nome", "data_atualizacao")
+
+  for (coluna in colunas) {
+    if (!coluna %in% names(dados)) {
+      dados[[coluna]] <- ""
+    }
+  }
+
+  dados |>
+    dplyr::select(dplyr::all_of(colunas))
+}
+
+salvar_pdf_aliases <- function(dados) {
+  caminho <- caminho_pdf_aliases()
+  dir.create(dirname(caminho), recursive = TRUE, showWarnings = FALSE)
+  readr::write_csv(dados, caminho)
+}
+
+salvar_pdf_alias <- function(empresa, pasta_pdf, cliente_nome) {
+  dados <- carregar_pdf_aliases()
+  empresa <- as.character(empresa)
+  pasta_pdf <- as.character(pasta_pdf)
+  cliente_nome <- as.character(cliente_nome)
+
+  dados <- dados |>
+    dplyr::filter(
+      !(
+        .data$empresa == empresa &
+          normalizar_nome(.data$pasta_pdf) == normalizar_nome(pasta_pdf)
+      )
+    )
+
+  dados <- dplyr::bind_rows(
+    dados,
+    tibble::tibble(
+      empresa = empresa,
+      pasta_pdf = pasta_pdf,
+      cliente_nome = cliente_nome,
+      data_atualizacao = as.character(Sys.time())
+    )
+  )
+
+  salvar_pdf_aliases(dados)
+  invisible(dados)
+}
+
+resolver_pdf_alias <- function(empresa, pasta_pdf) {
+  dados <- carregar_pdf_aliases()
+
+  if (nrow(dados) == 0) {
+    return(NA_character_)
+  }
+
+  registro <- dados |>
+    dplyr::filter(
+      .data$empresa == as.character(empresa),
+      normalizar_nome(.data$pasta_pdf) == normalizar_nome(pasta_pdf)
+    ) |>
+    dplyr::slice(1)
+
+  if (nrow(registro) == 0) {
+    return(NA_character_)
+  }
+
+  as.character(registro$cliente_nome[1])
+}
+
 formatar_telefone_br <- function(telefone) {
   original <- as.character(telefone)
   digitos <- normalizar_telefone_br(telefone)
@@ -136,7 +227,8 @@ buscar_competencias <- function(empresa) {
 buscar_pdfs_cliente <- function(
     empresa,
     competencia,
-    cliente_nome
+    cliente_nome,
+    pasta_pdf = NULL
 ) {
 
   pasta_base <- file.path(
@@ -177,9 +269,39 @@ buscar_pdfs_cliente <- function(
 
   nome_ref <- normalizar_nome(cliente_nome)
   nomes_pastas <- normalizar_nome(basename(pastas_clientes))
-  idx_exato <- which(nomes_pastas == nome_ref)
-  idx_prefixo <- which(startsWith(nomes_pastas, paste0(nome_ref, " ")))
-  idx_match <- unique(c(idx_exato, idx_prefixo))
+
+  if (!is.null(pasta_pdf) && trimws(as.character(pasta_pdf)) != "") {
+    pasta_ref <- normalizar_nome(pasta_pdf)
+    idx_pasta <- which(nomes_pastas == pasta_ref)
+
+    if (length(idx_pasta) == 1) {
+      idx_match <- idx_pasta
+    } else if (length(idx_pasta) > 1) {
+      return(
+        list(
+          arquivos_pdf = character(0),
+          pasta_encontrada = paste(basename(pastas_clientes[idx_pasta]), collapse = " | "),
+          total_pdfs = 0,
+          status_pdfs = "Mais de uma pasta possivel para o alias"
+        )
+      )
+    } else {
+      idx_match <- integer(0)
+    }
+  } else {
+    aliases <- carregar_pdf_aliases()
+    pastas_alias <- aliases |>
+      dplyr::filter(
+        .data$empresa == as.character(empresa),
+        normalizar_nome(.data$cliente_nome) == nome_ref
+      ) |>
+      dplyr::pull(.data$pasta_pdf)
+
+    idx_alias <- which(nomes_pastas %in% normalizar_nome(pastas_alias))
+    idx_exato <- which(nomes_pastas == nome_ref)
+    idx_prefixo <- which(startsWith(nomes_pastas, paste0(nome_ref, " ")))
+    idx_match <- unique(c(idx_alias, idx_exato, idx_prefixo))
+  }
 
   if (length(idx_match) == 0) {
     return(

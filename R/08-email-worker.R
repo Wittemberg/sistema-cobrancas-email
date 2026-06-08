@@ -30,6 +30,7 @@ enviar_email_cliente(
   mes_email = as.character(payload$mes_email),
   ano_email = as.character(payload$ano_email),
   enviar_whatsapp = FALSE,
+  pasta_pdf = if (is.null(payload$pasta_pdf)) "" else as.character(payload$pasta_pdf),
   usar_subprocesso = FALSE
 )
 

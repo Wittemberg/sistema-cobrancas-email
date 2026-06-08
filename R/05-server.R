@@ -769,6 +769,156 @@ server <- function(input, output, session) {
     )
   })
 
+  pdf_pendencias <- reactive({
+    resumo <- pdf_resumo()
+
+    if (nrow(resumo) == 0) {
+      return(resumo)
+    }
+
+    clientes <- ler_clientes_empresa(input$pdf_empresa)
+
+    if (nrow(clientes) == 0 || !"cliente_nome" %in% names(clientes)) {
+      return(
+        resumo |>
+          dplyr::filter(.data$PDFs > 0)
+      )
+    }
+
+    verificacoes <- purrr::map(
+      clientes$cliente_nome,
+      ~ buscar_pdfs_cliente(input$pdf_empresa, input$pdf_competencia, .x)
+    )
+
+    pastas_associadas <- purrr::map_chr(verificacoes, "pasta_encontrada")
+    pastas_associadas <- pastas_associadas[!is.na(pastas_associadas) & pastas_associadas != ""]
+
+    resumo |>
+      dplyr::filter(
+        .data$PDFs > 0,
+        !.data$Cliente %in% pastas_associadas
+      )
+  })
+
+  output$pdf_pendencias_tabela <- DT::renderDT({
+    datatable_padrao(
+      pdf_pendencias(),
+      page_length = 10
+    )
+  })
+
+  output$ui_pdf_pasta_sem_cliente <- renderUI({
+    pendencias <- pdf_pendencias()
+    escolhas <- sort(as.character(pendencias$Cliente))
+
+    selectInput(
+      "pdf_pasta_alias",
+      "Pasta sem associacao",
+      choices = escolhas,
+      selected = if (length(escolhas) > 0) escolhas[1] else character(0)
+    )
+  })
+
+  output$ui_pdf_cliente_alias <- renderUI({
+    req(input$pdf_empresa)
+
+    clientes <- ler_clientes_empresa(input$pdf_empresa)
+    escolhas <- sort(as.character(clientes$cliente_nome))
+    escolhas <- escolhas[!is.na(escolhas) & escolhas != ""]
+
+    selectInput(
+      "pdf_cliente_alias",
+      "Cliente correto",
+      choices = escolhas,
+      selected = if (length(escolhas) > 0) escolhas[1] else character(0)
+    )
+  })
+
+  salvar_associacao_pdf_selecionada <- function() {
+    req(input$pdf_empresa)
+    req(input$pdf_pasta_alias)
+    req(input$pdf_cliente_alias)
+
+    salvar_pdf_alias(
+      empresa = input$pdf_empresa,
+      pasta_pdf = input$pdf_pasta_alias,
+      cliente_nome = input$pdf_cliente_alias
+    )
+
+    atualizar_pdfs()
+  }
+
+  observeEvent(input$associar_pasta_pdf, {
+    tryCatch({
+      salvar_associacao_pdf_selecionada()
+      pdf_msg(paste("Associacao salva:", input$pdf_pasta_alias, "->", input$pdf_cliente_alias))
+    }, error = function(e) {
+      pdf_msg(paste("Erro ao salvar associacao:", conditionMessage(e)))
+    })
+  })
+
+  observeEvent(input$associar_pasta_pdf_fila, {
+    tryCatch({
+      salvar_associacao_pdf_selecionada()
+
+      cliente <- ler_clientes_empresa(input$pdf_empresa) |>
+        dplyr::filter(.data$cliente_nome == input$pdf_cliente_alias) |>
+        dplyr::slice(1)
+
+      if (nrow(cliente) == 0) {
+        stop("Cliente selecionado nao encontrado.")
+      }
+
+      verificacao <- buscar_pdfs_cliente(
+        empresa = input$pdf_empresa,
+        competencia = input$pdf_competencia,
+        cliente_nome = input$pdf_cliente_alias,
+        pasta_pdf = input$pdf_pasta_alias
+      )
+
+      if (verificacao$total_pdfs <= 0) {
+        stop("A pasta selecionada nao possui PDFs validos.")
+      }
+
+      fila <- carregar_fila()
+      if (!"pasta_pdf" %in% names(fila)) {
+        fila$pasta_pdf <- ""
+      }
+
+      idx <- which(
+        fila$empresa == input$pdf_empresa &
+          fila$competencia == input$pdf_competencia &
+          fila$cliente_nome == input$pdf_cliente_alias
+      )
+
+      novo_item <- tibble::tibble(
+        empresa = as.character(input$pdf_empresa),
+        competencia = as.character(input$pdf_competencia),
+        cliente_nome = as.character(input$pdf_cliente_alias),
+        email_principal = as.character(cliente$email_principal[1]),
+        total_pdfs = as.integer(verificacao$total_pdfs),
+        pasta_pdf = as.character(input$pdf_pasta_alias),
+        status = "pendente",
+        data_inclusao = as.character(Sys.time())
+      )
+
+      if (length(idx) > 0) {
+        fila[idx[1], names(novo_item)] <- novo_item[1, ]
+      } else {
+        fila <- dplyr::bind_rows(fila, novo_item)
+      }
+
+      criar_backup_seguro()
+      salvar_fila(fila)
+      atualizar_fila()
+      atualizar_pdfs()
+
+      pdf_msg(paste("Associacao salva e item adicionado a fila:", input$pdf_cliente_alias))
+    }, error = function(e) {
+      pdf_msg(paste("Erro ao adicionar a fila:", conditionMessage(e)))
+    })
+  })
+
   observeEvent(input$pdf_competencia, {
     atualizar_contador(pdf_refresh)
   })
@@ -2860,6 +3010,32 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     file.path(pasta_raiz, "logs", "fila_envio.csv")
   }
 
+  colunas_fila <- function() {
+    c(
+      "empresa",
+      "competencia",
+      "cliente_nome",
+      "email_principal",
+      "total_pdfs",
+      "pasta_pdf",
+      "status",
+      "data_inclusao"
+    )
+  }
+
+  normalizar_colunas_fila <- function(dados) {
+    colunas <- colunas_fila()
+
+    for (coluna in colunas) {
+      if (!coluna %in% names(dados)) {
+        dados[[coluna]] <- ""
+      }
+    }
+
+    dados |>
+      dplyr::select(dplyr::all_of(colunas), dplyr::everything())
+  }
+
   carregar_fila <- function() {
     caminho <- caminho_fila()
 
@@ -2871,20 +3047,25 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           cliente_nome = character(),
           email_principal = character(),
           total_pdfs = numeric(),
+          pasta_pdf = character(),
           status = character(),
           data_inclusao = character()
         )
       )
     }
 
-    readr::read_csv(
+    dados <- readr::read_csv(
       caminho,
       show_col_types = FALSE,
       col_types = readr::cols(.default = "c")
     )
+
+    normalizar_colunas_fila(dados)
   }
 
   salvar_fila <- function(dados) {
+    dados <- normalizar_colunas_fila(dados)
+
     caminho <- caminho_fila()
     dir.create(dirname(caminho), recursive = TRUE, showWarnings = FALSE)
     readr::write_csv(dados, caminho)
@@ -2939,6 +3120,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     )
 
     clientes$total_pdfs <- purrr::map_int(verificacoes, "total_pdfs")
+    clientes$pasta_pdf <- purrr::map_chr(verificacoes, "pasta_encontrada")
 
     clientes_validos <- clientes |>
       dplyr::filter(.data$total_pdfs > 0)
@@ -2954,6 +3136,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       cliente_nome = as.character(clientes_validos$cliente_nome),
       email_principal = as.character(clientes_validos$email_principal),
       total_pdfs = as.integer(clientes_validos$total_pdfs),
+      pasta_pdf = as.character(clientes_validos$pasta_pdf),
       status = "pendente",
       data_inclusao = as.character(Sys.time())
     )
@@ -3140,7 +3323,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
                 competencia = item$competencia,
                 mes_email = input$fila_mes_email,
                 ano_email = input$fila_ano_email,
-                enviar_whatsapp = FALSE
+                enviar_whatsapp = FALSE,
+                pasta_pdf = if ("pasta_pdf" %in% names(item)) item$pasta_pdf else ""
               )
 
               enviar_whatsapp_apos_tentativa_email(
@@ -3151,6 +3335,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
                 ano_email = input$fila_ano_email,
                 enviar_whatsapp = isTRUE(input$fila_enviar_whatsapp_pos_email),
                 whatsapp_intervalo_segundos = input$fila_whatsapp_intervalo_segundos,
+                pasta_pdf = if ("pasta_pdf" %in% names(item)) item$pasta_pdf else "",
                 email_status = "email_enviado"
               )
 
@@ -3170,6 +3355,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
                   ano_email = input$fila_ano_email,
                   enviar_whatsapp = isTRUE(input$fila_enviar_whatsapp_pos_email),
                   whatsapp_intervalo_segundos = input$fila_whatsapp_intervalo_segundos,
+                  pasta_pdf = if ("pasta_pdf" %in% names(item)) item$pasta_pdf else "",
                   email_status = "email_falha"
                 )
               }
@@ -3324,6 +3510,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           mes_email = processamento$mes_email,
           ano_email = processamento$ano_email,
           enviar_whatsapp = FALSE,
+          pasta_pdf = if ("pasta_pdf" %in% names(item)) item$pasta_pdf else "",
           log_callback = function(etapa, detalhe = "") {
             registrar_log_processamento(
               origem = "fila",
@@ -3365,6 +3552,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           ano_email = processamento$ano_email,
           enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
           whatsapp_intervalo_segundos = 0,
+          pasta_pdf = if ("pasta_pdf" %in% names(item)) item$pasta_pdf else "",
           email_status = "email_enviado"
         )
 
@@ -3405,6 +3593,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
             ano_email = processamento$ano_email,
             enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
             whatsapp_intervalo_segundos = 0,
+            pasta_pdf = if ("pasta_pdf" %in% names(item)) item$pasta_pdf else "",
             email_status = "email_falha"
           )
 
@@ -3518,7 +3707,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           competencia = item$competencia,
           mes_email = processamento$mes_email,
           ano_email = processamento$ano_email,
-          enviar_whatsapp = FALSE
+          enviar_whatsapp = FALSE,
+          pasta_pdf = if ("pasta_pdf" %in% names(item)) item$pasta_pdf else ""
         )
 
         enviar_whatsapp_apos_tentativa_email(
@@ -3529,6 +3719,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           ano_email = processamento$ano_email,
           enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
           whatsapp_intervalo_segundos = 0,
+          pasta_pdf = if ("pasta_pdf" %in% names(item)) item$pasta_pdf else "",
           email_status = "email_enviado"
         )
 
@@ -3591,6 +3782,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
     datatable_padrao(
       dados_tabela,
+      selection = "single",
       page_length = 15,
       colnames = c(
         "Empresa",
@@ -3598,10 +3790,165 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         "Cliente",
         "Email Principal",
         "Qtd PDFs",
+        "Pasta PDF",
         "Status",
         "Data Inclusão"
       )
     )
+  })
+
+  output$ui_fila_editar_cliente <- renderUI({
+    empresa <- input$fila_empresa
+
+    if (is.null(empresa) || empresa == "") {
+      empresas <- listar_empresas()
+      empresa <- if (length(empresas) > 0) empresas[1] else ""
+    }
+
+    clientes <- ler_clientes_empresa(empresa)
+    escolhas <- sort(as.character(clientes$cliente_nome))
+    escolhas <- escolhas[!is.na(escolhas) & escolhas != ""]
+
+    selectInput(
+      "fila_editar_cliente",
+      "Cliente",
+      choices = escolhas,
+      selected = if (length(escolhas) > 0) escolhas[1] else character(0)
+    )
+  })
+
+  fila_filtrada_atual <- function() {
+    dados <- carregar_fila()
+    status_filtro <- input$fila_status_filtro
+
+    if (is.null(status_filtro) || length(status_filtro) == 0) {
+      status_filtro <- c("pendente", "processando", "erro")
+    }
+
+    dados |>
+      dplyr::filter(.data$status %in% status_filtro)
+  }
+
+  indice_fila_selecionada <- function() {
+    linha <- input$fila_tabela_rows_selected
+
+    if (is.null(linha) || length(linha) == 0) {
+      return(integer(0))
+    }
+
+    fila <- carregar_fila()
+    filtrada <- fila_filtrada_atual()
+
+    if (nrow(filtrada) < linha) {
+      return(integer(0))
+    }
+
+    item <- filtrada[linha, ]
+
+    idx <- which(
+      fila$empresa == item$empresa[1] &
+        fila$competencia == item$competencia[1] &
+        fila$cliente_nome == item$cliente_nome[1] &
+        fila$data_inclusao == item$data_inclusao[1]
+    )
+
+    idx[1]
+  }
+
+  observeEvent(input$fila_tabela_rows_selected, {
+    idx <- indice_fila_selecionada()
+
+    if (length(idx) == 0 || is.na(idx)) {
+      return()
+    }
+
+    item <- carregar_fila()[idx, ]
+
+    updateSelectInput(session, "fila_editar_cliente", selected = item$cliente_nome[1])
+    updateTextInput(session, "fila_editar_pasta_pdf", value = item$pasta_pdf[1])
+    updateSelectInput(session, "fila_editar_status", selected = item$status[1])
+  })
+
+  observeEvent(input$salvar_item_fila, {
+    if (!is.null(fila_processamento())) {
+      fila_msg("Aguarde o processamento atual terminar antes de editar a fila.")
+      return()
+    }
+
+    idx <- indice_fila_selecionada()
+
+    if (length(idx) == 0 || is.na(idx)) {
+      fila_msg("Selecione um item da fila para editar.")
+      return()
+    }
+
+    tryCatch({
+      fila <- carregar_fila()
+      item <- fila[idx, ]
+      cliente <- ler_clientes_empresa(item$empresa[1]) |>
+        dplyr::filter(.data$cliente_nome == input$fila_editar_cliente) |>
+        dplyr::slice(1)
+
+      if (nrow(cliente) == 0) {
+        stop("Cliente selecionado nao encontrado.")
+      }
+
+      pasta_pdf <- trimws(as.character(input$fila_editar_pasta_pdf))
+
+      verificacao <- buscar_pdfs_cliente(
+        empresa = item$empresa[1],
+        competencia = item$competencia[1],
+        cliente_nome = input$fila_editar_cliente,
+        pasta_pdf = pasta_pdf
+      )
+
+      if (pasta_pdf != "" && verificacao$total_pdfs > 0) {
+        salvar_pdf_alias(
+          empresa = item$empresa[1],
+          pasta_pdf = pasta_pdf,
+          cliente_nome = input$fila_editar_cliente
+        )
+      }
+
+      fila$cliente_nome[idx] <- as.character(input$fila_editar_cliente)
+      fila$email_principal[idx] <- as.character(cliente$email_principal[1])
+      fila$total_pdfs[idx] <- as.integer(verificacao$total_pdfs)
+      fila$pasta_pdf[idx] <- pasta_pdf
+      fila$status[idx] <- as.character(input$fila_editar_status)
+
+      criar_backup_seguro()
+      salvar_fila(fila)
+      atualizar_fila()
+      atualizar_pdfs()
+
+      fila_msg(paste("Item atualizado:", input$fila_editar_cliente))
+    }, error = function(e) {
+      fila_msg(paste("Erro ao atualizar item:", conditionMessage(e)))
+    })
+  })
+
+  observeEvent(input$excluir_item_fila, {
+    if (!is.null(fila_processamento())) {
+      fila_msg("Aguarde o processamento atual terminar antes de excluir item da fila.")
+      return()
+    }
+
+    idx <- indice_fila_selecionada()
+
+    if (length(idx) == 0 || is.na(idx)) {
+      fila_msg("Selecione um item da fila para excluir.")
+      return()
+    }
+
+    fila <- carregar_fila()
+    cliente_nome <- fila$cliente_nome[idx]
+    fila <- fila[-idx, , drop = FALSE]
+
+    criar_backup_seguro()
+    salvar_fila(fila)
+    atualizar_fila()
+
+    fila_msg(paste("Item removido da fila:", cliente_nome))
   })
 
   output$fila_msg <- renderText({
@@ -3826,6 +4173,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           mes_email = processamento$mes_email,
           ano_email = processamento$ano_email,
           enviar_whatsapp = FALSE,
+          pasta_pdf = if ("pasta_encontrada" %in% names(cliente)) cliente$pasta_encontrada else "",
           log_callback = function(etapa, detalhe = "") {
             registrar_log_processamento(
               origem = "disparo",
@@ -3867,6 +4215,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           ano_email = processamento$ano_email,
           enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
           whatsapp_intervalo_segundos = 0,
+          pasta_pdf = if ("pasta_encontrada" %in% names(cliente)) cliente$pasta_encontrada else "",
           email_status = "email_enviado"
         )
 
@@ -3902,6 +4251,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           ano_email = processamento$ano_email,
           enviar_whatsapp = isTRUE(processamento$enviar_whatsapp),
           whatsapp_intervalo_segundos = 0,
+          pasta_pdf = if ("pasta_encontrada" %in% names(cliente)) cliente$pasta_encontrada else "",
           email_status = "email_falha"
         )
 

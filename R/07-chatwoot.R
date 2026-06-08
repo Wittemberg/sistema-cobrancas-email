@@ -221,7 +221,8 @@ enviar_whatsapp_cliente <- function(
     mes_email = "",
     ano_email = "",
     email_status = "email_enviado",
-    enviar_pdfs = NULL
+    enviar_pdfs = NULL,
+    pasta_pdf = NULL
 ) {
   cliente_nome <- as.character(cliente$cliente_nome)
   telefone <- as.character(cliente$telefone_whatsapp)
@@ -268,7 +269,8 @@ enviar_whatsapp_cliente <- function(
       verificacao_pdfs <- buscar_pdfs_cliente(
         empresa = empresa,
         competencia = competencia,
-        cliente_nome = cliente_nome
+        cliente_nome = cliente_nome,
+        pasta_pdf = pasta_pdf
       )
 
       arquivos_pdf <- as.character(verificacao_pdfs$arquivos_pdf)
