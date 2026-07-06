@@ -832,6 +832,16 @@ ui_app <- fluidPage(
             textInput("cw_base_url", "URL Base"),
             textInput("cw_account_id", "Account ID"),
             textInput("cw_inbox_identifier", "Inbox Identifier"),
+            textInput("cw_inbox_id", "Inbox ID"),
+            selectInput(
+              "cw_metodo_envio",
+              "Metodo de envio",
+              choices = c(
+                "Public API do Inbox" = "public_api",
+                "Account API (outgoing agente)" = "account_api"
+              ),
+              selected = "public_api"
+            ),
             passwordInput("cw_token", "API Access Token"),
 
             checkboxInput("cw_ativo", "Ativo", value = TRUE),

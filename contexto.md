@@ -278,6 +278,8 @@ _config/chatwoot.csv
 Recursos:
 
 - configuracao por empresa
+- metodo de envio parametrizavel: `public_api` ou `account_api`
+- `public_api` usa o endpoint publico do inbox; `account_api` usa Account API com `message_type = outgoing` e exige `account_id` + `inbox_id`
 - teste de envio
 - envio manual por cliente
 - envio automatico apos tentativa de e-mail

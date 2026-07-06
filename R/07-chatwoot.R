@@ -133,6 +133,268 @@ chatwoot_contact_identifier <- function(empresa, telefone_normalizado) {
   paste0("wrtec_", empresa_limpa, "_", telefone_limpo)
 }
 
+chatwoot_metodo_envio <- function(config) {
+  if (!"metodo_envio" %in% names(config)) {
+    return("public_api")
+  }
+
+  metodo <- trimws(as.character(config$metodo_envio[1]))
+
+  if (metodo %in% c("public_api", "account_api")) {
+    return(metodo)
+  }
+
+  "public_api"
+}
+
+chatwoot_inbox_id <- function(config) {
+  inbox_id <- if ("inbox_id" %in% names(config)) {
+    trimws(as.character(config$inbox_id[1]))
+  } else {
+    ""
+  }
+
+  if (inbox_id == "" && "inbox_identifier" %in% names(config)) {
+    candidato <- trimws(as.character(config$inbox_identifier[1]))
+
+    if (grepl("^[0-9]+$", candidato)) {
+      inbox_id <- candidato
+    }
+  }
+
+  if (inbox_id == "" || !grepl("^[0-9]+$", inbox_id)) {
+    stop("Inbox ID numerico obrigatorio para o metodo Account API.")
+  }
+
+  as.integer(inbox_id)
+}
+
+chatwoot_payload_lista <- function(json) {
+  payload <- json$payload
+
+  if (is.null(payload)) {
+    return(list())
+  }
+
+  if (is.data.frame(payload)) {
+    return(split(payload, seq_len(nrow(payload))))
+  }
+
+  if (is.list(payload) && "id" %in% names(payload)) {
+    return(list(payload))
+  }
+
+  if (is.list(payload) && length(payload) > 0 && !is.null(payload[[1]])) {
+    return(payload)
+  }
+
+  list()
+}
+
+chatwoot_primeiro_valor <- function(x, nome) {
+  valor <- x[[nome]]
+
+  if (is.null(valor) || length(valor) == 0) {
+    return(NULL)
+  }
+
+  valor[[1]]
+}
+
+chatwoot_contact_source_id <- function(contato, inbox_id, fallback) {
+  contact_inboxes <- contato$contact_inboxes
+
+  if (is.null(contact_inboxes)) {
+    return(fallback)
+  }
+
+  if (is.data.frame(contact_inboxes)) {
+    if ("source_id" %in% names(contact_inboxes)) {
+      return(as.character(contact_inboxes$source_id[1]))
+    }
+
+    return(fallback)
+  }
+
+  for (item in contact_inboxes) {
+    inbox <- item$inbox
+    item_inbox_id <- if (!is.null(inbox$id)) as.integer(inbox$id) else NA_integer_
+
+    if (is.na(item_inbox_id) || item_inbox_id == inbox_id) {
+      source_id <- item$source_id
+
+      if (!is.null(source_id) && source_id != "") {
+        return(as.character(source_id))
+      }
+    }
+  }
+
+  fallback
+}
+
+chatwoot_contact_id <- function(contato_json) {
+  if (!is.null(contato_json$id)) {
+    return(as.integer(contato_json$id))
+  }
+
+  payload <- chatwoot_payload_lista(contato_json)
+
+  if (length(payload) > 0 && !is.null(payload[[1]]$id)) {
+    return(as.integer(payload[[1]]$id))
+  }
+
+  NA_integer_
+}
+
+chatwoot_buscar_ou_criar_contato_account <- function(
+    base_url,
+    account_id,
+    inbox_id,
+    token,
+    cliente_nome,
+    telefone_normalizado,
+    identifier,
+    timeout
+) {
+  busca_url <- paste0(
+    base_url,
+    "/api/v1/accounts/",
+    account_id,
+    "/contacts/search"
+  )
+
+  busca_resp <- httr2::request(busca_url) |>
+    httr2::req_headers("api_access_token" = token) |>
+    httr2::req_url_query(q = telefone_normalizado) |>
+    httr2::req_timeout(timeout) |>
+    chatwoot_perform("account_contato_busca")
+
+  contatos <- chatwoot_payload_lista(httr2::resp_body_json(busca_resp))
+  telefone_limpo <- gsub("[^0-9]", "", telefone_normalizado)
+
+  for (contato in contatos) {
+    contato_tel <- gsub("[^0-9]", "", as.character(contato$phone_number))
+    contato_identifier <- as.character(contato$identifier)
+
+    if (
+      identical(contato_identifier, identifier) ||
+        identical(contato_tel, telefone_limpo)
+    ) {
+      return(contato)
+    }
+  }
+
+  criar_url <- paste0(
+    base_url,
+    "/api/v1/accounts/",
+    account_id,
+    "/contacts"
+  )
+
+  criar_resp <- httr2::request(criar_url) |>
+    httr2::req_headers(
+      "Content-Type" = "application/json",
+      "api_access_token" = token
+    ) |>
+    httr2::req_body_json(
+      list(
+        inbox_id = inbox_id,
+        name = cliente_nome,
+        phone_number = telefone_normalizado,
+        identifier = identifier,
+        custom_attributes = list()
+      )
+    ) |>
+    httr2::req_timeout(timeout) |>
+    chatwoot_perform("account_contato_criar")
+
+  criar_json <- httr2::resp_body_json(criar_resp)
+  payload <- chatwoot_payload_lista(criar_json)
+
+  if (length(payload) > 0) {
+    return(payload[[1]])
+  }
+
+  criar_json
+}
+
+chatwoot_obter_conversa_account <- function(
+    base_url,
+    account_id,
+    inbox_id,
+    token,
+    contato,
+    source_id,
+    timeout,
+    empresa,
+    competencia,
+    origem
+) {
+  contato_id <- chatwoot_contact_id(contato)
+
+  if (is.na(contato_id)) {
+    stop("Contato Chatwoot sem ID para criar conversa.")
+  }
+
+  conversas_url <- paste0(
+    base_url,
+    "/api/v1/accounts/",
+    account_id,
+    "/contacts/",
+    contato_id,
+    "/conversations"
+  )
+
+  conversas_resp <- httr2::request(conversas_url) |>
+    httr2::req_headers("api_access_token" = token) |>
+    httr2::req_timeout(timeout) |>
+    chatwoot_perform("account_conversas_contato")
+
+  conversas <- chatwoot_payload_lista(httr2::resp_body_json(conversas_resp))
+
+  if (length(conversas) > 0) {
+    for (conversa in conversas) {
+      conversa_inbox_id <- suppressWarnings(as.integer(conversa$inbox_id))
+
+      if (!is.na(conversa_inbox_id) && conversa_inbox_id == inbox_id) {
+        return(as.integer(conversa$id))
+      }
+    }
+  }
+
+  criar_url <- paste0(
+    base_url,
+    "/api/v1/accounts/",
+    account_id,
+    "/conversations"
+  )
+
+  criar_resp <- httr2::request(criar_url) |>
+    httr2::req_headers(
+      "Content-Type" = "application/json",
+      "api_access_token" = token
+    ) |>
+    httr2::req_body_json(
+      list(
+        source_id = source_id,
+        inbox_id = inbox_id,
+        contact_id = contato_id,
+        status = "open",
+        custom_attributes = list(
+          empresa_id = as.character(empresa),
+          competencia = as.character(competencia),
+          origem = as.character(origem)
+        )
+      )
+    ) |>
+    httr2::req_timeout(timeout) |>
+    chatwoot_perform("account_conversa_criar")
+
+  conversa_json <- httr2::resp_body_json(criar_resp)
+
+  as.integer(conversa_json$id)
+}
+
 substituir_variaveis_whatsapp <- function(
     texto,
     empresa,
@@ -300,6 +562,109 @@ enviar_whatsapp_cliente <- function(
       telefone_normalizado
     )
     base_url <- sub("/+$", "", as.character(config$base_url))
+    metodo_envio <- chatwoot_metodo_envio(config)
+
+    if (identical(metodo_envio, "account_api")) {
+      account_id <- trimws(as.character(config$account_id[1]))
+
+      if (account_id == "") {
+        stop("Account ID obrigatorio para o metodo Account API.")
+      }
+
+      inbox_id <- chatwoot_inbox_id(config)
+      token <- as.character(config$api_access_token)
+
+      contato <- chatwoot_buscar_ou_criar_contato_account(
+        base_url = base_url,
+        account_id = account_id,
+        inbox_id = inbox_id,
+        token = token,
+        cliente_nome = cliente_nome,
+        telefone_normalizado = telefone_normalizado,
+        identifier = contact_identifier_esperado,
+        timeout = timeout
+      )
+
+      source_id <- chatwoot_contact_source_id(
+        contato = contato,
+        inbox_id = inbox_id,
+        fallback = contact_identifier_esperado
+      )
+
+      conversation_id <- chatwoot_obter_conversa_account(
+        base_url = base_url,
+        account_id = account_id,
+        inbox_id = inbox_id,
+        token = token,
+        contato = contato,
+        source_id = source_id,
+        timeout = timeout,
+        empresa = empresa,
+        competencia = competencia,
+        origem = origem
+      )
+
+      mensagem_url <- paste0(
+        base_url,
+        "/api/v1/accounts/",
+        account_id,
+        "/conversations/",
+        conversation_id,
+        "/messages"
+      )
+
+      httr2::request(mensagem_url) |>
+        httr2::req_headers(
+          "Content-Type" = "application/json",
+          "api_access_token" = token
+        ) |>
+        httr2::req_body_json(
+          list(
+            content = mensagem,
+            message_type = "outgoing",
+            private = FALSE,
+            content_type = "text",
+            content_attributes = list()
+          )
+        ) |>
+        httr2::req_timeout(timeout) |>
+        chatwoot_perform("account_mensagem")
+
+      if (length(arquivos_pdf) > 0) {
+        for (arquivo_pdf in arquivos_pdf) {
+          httr2::request(mensagem_url) |>
+            httr2::req_headers(
+              "api_access_token" = token
+            ) |>
+            httr2::req_body_multipart(
+              content = "",
+              message_type = "outgoing",
+              private = "false",
+              `attachments[]` = curl::form_file(arquivo_pdf)
+            ) |>
+            httr2::req_timeout(timeout) |>
+            chatwoot_perform("account_anexo")
+        }
+      }
+
+      mensagem_log <- if (length(arquivos_pdf) > 0) {
+        paste0(mensagem, "\nPDFs anexados: ", length(arquivos_pdf))
+      } else {
+        mensagem
+      }
+
+      registrar_log_whatsapp(
+        empresa = empresa,
+        cliente_nome = cliente_nome,
+        telefone = telefone_normalizado,
+        mensagem = mensagem_log,
+        status = "enviado",
+        origem = paste0(origem, "_account_api"),
+        competencia = competencia
+      )
+
+      return(TRUE)
+    }
 
     contato_url <- paste0(
       base_url,

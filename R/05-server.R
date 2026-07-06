@@ -2037,6 +2037,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       "base_url",
       "account_id",
       "inbox_identifier",
+      "inbox_id",
+      "metodo_envio",
       "api_access_token",
       "observacao"
     )
@@ -2065,6 +2067,13 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
     dados |>
       dplyr::mutate(
+        metodo_envio = dplyr::if_else(
+          is.na(.data$metodo_envio) | .data$metodo_envio == "",
+          "public_api",
+          .data$metodo_envio
+        )
+      ) |>
+      dplyr::mutate(
         ativo = as.logical(.data$ativo),
         enviar_pdfs_whatsapp = as.logical(.data$enviar_pdfs_whatsapp),
         mensagem_email_enviado = dplyr::if_else(
@@ -2084,6 +2093,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         base_url,
         account_id,
         inbox_identifier,
+        inbox_id,
+        metodo_envio,
         api_access_token,
         ativo,
         enviar_pdfs_whatsapp,
@@ -2104,6 +2115,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           base_url = character(),
           account_id = character(),
           inbox_identifier = character(),
+          inbox_id = character(),
+          metodo_envio = character(),
           api_access_token = character(),
           ativo = logical(),
           enviar_pdfs_whatsapp = logical(),
@@ -2151,6 +2164,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         "URL Base",
         "Account ID",
         "Inbox Identifier",
+        "Inbox ID",
+        "Metodo Envio",
         "Token",
         "Ativo",
         "Enviar PDFs",
@@ -2174,6 +2189,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     updateTextInput(session, "cw_base_url", value = item$base_url)
     updateTextInput(session, "cw_account_id", value = item$account_id)
     updateTextInput(session, "cw_inbox_identifier", value = item$inbox_identifier)
+    updateTextInput(session, "cw_inbox_id", value = item$inbox_id)
+    updateSelectInput(session, "cw_metodo_envio", selected = item$metodo_envio)
     updateTextInput(session, "cw_token", value = item$api_access_token)
     updateCheckboxInput(session, "cw_ativo", value = as.logical(item$ativo))
     updateCheckboxInput(session, "cw_enviar_pdfs", value = as.logical(item$enviar_pdfs_whatsapp))
@@ -2198,6 +2215,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     updateTextInput(session, "cw_base_url", value = "")
     updateTextInput(session, "cw_account_id", value = "")
     updateTextInput(session, "cw_inbox_identifier", value = "")
+    updateTextInput(session, "cw_inbox_id", value = "")
+    updateSelectInput(session, "cw_metodo_envio", selected = "public_api")
     updateTextInput(session, "cw_token", value = "")
     updateCheckboxInput(session, "cw_ativo", value = TRUE)
     updateCheckboxInput(session, "cw_enviar_pdfs", value = FALSE)
@@ -2222,6 +2241,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
       base_url = as.character(input$cw_base_url),
       account_id = as.character(input$cw_account_id),
       inbox_identifier = as.character(input$cw_inbox_identifier),
+      inbox_id = as.character(input$cw_inbox_id),
+      metodo_envio = as.character(input$cw_metodo_envio),
       api_access_token = as.character(input$cw_token),
       ativo = as.logical(input$cw_ativo),
       enviar_pdfs_whatsapp = as.logical(input$cw_enviar_pdfs),
@@ -2285,6 +2306,87 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
 
       if (nchar(telefone) < 10) {
         stop("Telefone inválido. Informe DDD + número.")
+      }
+
+      if (identical(input$cw_metodo_envio, "account_api")) {
+        account_id <- trimws(as.character(input$cw_account_id))
+        inbox_id <- trimws(as.character(input$cw_inbox_id))
+
+        if (inbox_id == "" && grepl("^[0-9]+$", trimws(as.character(input$cw_inbox_identifier)))) {
+          inbox_id <- trimws(as.character(input$cw_inbox_identifier))
+        }
+
+        if (account_id == "" || inbox_id == "" || !grepl("^[0-9]+$", inbox_id)) {
+          stop("Account ID e Inbox ID numerico sao obrigatorios para testar Account API.")
+        }
+
+        contato <- chatwoot_buscar_ou_criar_contato_account(
+          base_url = base_url,
+          account_id = account_id,
+          inbox_id = as.integer(inbox_id),
+          token = input$cw_token,
+          cliente_nome = input$cw_teste_nome,
+          telefone_normalizado = telefone_chatwoot,
+          identifier = contact_identifier_esperado,
+          timeout = chatwoot_timeout_segundos()
+        )
+
+        source_id <- chatwoot_contact_source_id(
+          contato = contato,
+          inbox_id = as.integer(inbox_id),
+          fallback = contact_identifier_esperado
+        )
+
+        conversation_id <- chatwoot_obter_conversa_account(
+          base_url = base_url,
+          account_id = account_id,
+          inbox_id = as.integer(inbox_id),
+          token = input$cw_token,
+          contato = contato,
+          source_id = source_id,
+          timeout = chatwoot_timeout_segundos(),
+          empresa = input$cw_empresa_id,
+          competencia = "",
+          origem = "teste_chatwoot"
+        )
+
+        mensagem_url <- paste0(
+          base_url,
+          "/api/v1/accounts/",
+          account_id,
+          "/conversations/",
+          conversation_id,
+          "/messages"
+        )
+
+        httr2::request(mensagem_url) |>
+          httr2::req_headers(
+            "Content-Type" = "application/json",
+            "api_access_token" = input$cw_token
+          ) |>
+          httr2::req_body_json(
+            list(
+              content = input$cw_teste_msg,
+              message_type = "outgoing",
+              private = FALSE,
+              content_type = "text",
+              content_attributes = list()
+            )
+          ) |>
+          httr2::req_timeout(chatwoot_timeout_segundos()) |>
+          chatwoot_perform("teste_account_mensagem")
+
+        registrar_log_whatsapp(
+          empresa = input$cw_empresa_id,
+          cliente_nome = input$cw_teste_nome,
+          telefone = input$cw_teste_telefone,
+          mensagem = input$cw_teste_msg,
+          status = "enviado",
+          origem = "teste_chatwoot_account_api"
+        )
+
+        cw_msg("Mensagem de teste enviada pelo Chatwoot via Account API.")
+        return()
       }
 
       contato_url <- paste0(

@@ -105,7 +105,7 @@ awe,AWE Cloud Solution,27999999999,comercial@awecloudsolution.com,AWE,smtp_awe_c
 ### chatwoot.csv
 
 ```csv
-chatwoot_id,empresa_id,base_url,account_id,inbox_identifier,api_access_token,enviar_pdfs_whatsapp,mensagem_email_enviado,mensagem_email_falha,ativo,observacao
+chatwoot_id,empresa_id,base_url,account_id,inbox_identifier,inbox_id,metodo_envio,api_access_token,enviar_pdfs_whatsapp,mensagem_email_enviado,mensagem_email_falha,ativo,observacao
 ```
 
 ### smtp_rotacao.csv
@@ -309,6 +309,11 @@ Arquivo principal:
 ```text
 R/07-chatwoot.R
 ```
+
+Metodos de envio:
+
+- `public_api`: metodo original, usa `/public/api/v1/inboxes/{inbox_identifier}`.
+- `account_api`: usa `/api/v1/accounts/{account_id}` e envia como `message_type = outgoing`; exige `account_id` e `inbox_id` numerico.
 
 Recursos:
 
