@@ -67,24 +67,25 @@ salvar_pdf_aliases <- function(dados) {
 
 salvar_pdf_alias <- function(empresa, pasta_pdf, cliente_nome) {
   dados <- carregar_pdf_aliases()
-  empresa <- as.character(empresa)
-  pasta_pdf <- as.character(pasta_pdf)
-  cliente_nome <- as.character(cliente_nome)
+  empresa_ref <- as.character(empresa)
+  pasta_pdf_ref <- as.character(pasta_pdf)
+  pasta_pdf_norm <- normalizar_nome(pasta_pdf_ref)
+  cliente_nome_ref <- as.character(cliente_nome)
 
   dados <- dados |>
     dplyr::filter(
       !(
-        .data$empresa == empresa &
-          normalizar_nome(.data$pasta_pdf) == normalizar_nome(pasta_pdf)
+        .data$empresa == empresa_ref &
+          normalizar_nome(.data$pasta_pdf) == pasta_pdf_norm
       )
     )
 
   dados <- dplyr::bind_rows(
     dados,
     tibble::tibble(
-      empresa = empresa,
-      pasta_pdf = pasta_pdf,
-      cliente_nome = cliente_nome,
+      empresa = empresa_ref,
+      pasta_pdf = pasta_pdf_ref,
+      cliente_nome = cliente_nome_ref,
       data_atualizacao = as.character(Sys.time())
     )
   )
@@ -95,6 +96,8 @@ salvar_pdf_alias <- function(empresa, pasta_pdf, cliente_nome) {
 
 resolver_pdf_alias <- function(empresa, pasta_pdf) {
   dados <- carregar_pdf_aliases()
+  empresa_ref <- as.character(empresa)
+  pasta_pdf_norm <- normalizar_nome(as.character(pasta_pdf))
 
   if (nrow(dados) == 0) {
     return(NA_character_)
@@ -102,8 +105,8 @@ resolver_pdf_alias <- function(empresa, pasta_pdf) {
 
   registro <- dados |>
     dplyr::filter(
-      .data$empresa == as.character(empresa),
-      normalizar_nome(.data$pasta_pdf) == normalizar_nome(pasta_pdf)
+      .data$empresa == empresa_ref,
+      normalizar_nome(.data$pasta_pdf) == pasta_pdf_norm
     ) |>
     dplyr::slice(1)
 
