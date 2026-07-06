@@ -184,6 +184,7 @@ Regra importante:
 - nao ha associacao por "pasta mais parecida", para evitar fila indevida quando uma competencia possui menos pastas do que clientes cadastrados
 - pastas sem associacao aparecem na aba PDFs e podem ser vinculadas manualmente a um cliente
 - o vinculo manual move/mescla os PDFs para a pasta canonica do cliente e fica salvo em `_config/pdf_aliases.csv`, permitindo que o sistema aprenda o padrao da pasta nas proximas importacoes
+- importacoes ZIP geram log em `logs/pdf_importacao.csv` e sao bloqueadas se muitas pastas/clientes de origem forem direcionados para um unico cliente
 
 ## Modelos
 

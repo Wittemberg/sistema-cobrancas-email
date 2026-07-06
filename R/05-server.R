@@ -1055,7 +1055,7 @@ server <- function(input, output, session) {
   interpretar_pdf_zip <- function(nome_zip, competencia) {
     partes <- strsplit(nome_zip, "/", fixed = TRUE)[[1]]
 
-    if (length(partes) >= 3 && partes[1] == competencia) {
+    if (length(partes) >= 2 && partes[1] == competencia) {
       partes <- partes[-1]
     }
 
@@ -1068,6 +1068,27 @@ server <- function(input, output, session) {
       arquivo = limpar_segmento_caminho(tail(partes, 1)),
       partes = partes
     )
+  }
+
+  caminho_log_importacao_pdfs <- function() {
+    file.path(pasta_raiz, "logs", "pdf_importacao.csv")
+  }
+
+  registrar_log_importacao_pdfs <- function(dados) {
+    caminho <- caminho_log_importacao_pdfs()
+    dir.create(dirname(caminho), recursive = TRUE, showWarnings = FALSE)
+
+    if (file.exists(caminho)) {
+      atual <- readr::read_csv(
+        caminho,
+        show_col_types = FALSE,
+        col_types = readr::cols(.default = "c")
+      )
+
+      dados <- dplyr::bind_rows(atual, dados)
+    }
+
+    readr::write_csv(dados, caminho)
   }
 
   observeEvent(input$importar_zip_pdfs, {
@@ -1108,6 +1129,61 @@ server <- function(input, output, session) {
         stop("ZIP deve conter PDFs em Cliente/arquivo.pdf ou Competência/Cliente/arquivo.pdf.")
       }
 
+      import_id <- format(Sys.time(), "%Y%m%d-%H%M%S")
+      plano_importacao <- purrr::map_dfr(seq_len(nrow(pdfs_zip)), function(i) {
+        item_zip <- pdfs_validos[[i]]
+        cliente_origem <- item_zip$cliente
+        cliente_destino <- cliente_origem
+        cliente_alias <- resolver_pdf_alias(input$pdf_empresa, cliente_origem)
+        alias_aplicado <- FALSE
+
+        if (!is.na(cliente_alias) && trimws(cliente_alias) != "") {
+          cliente_destino <- cliente_alias
+          alias_aplicado <- TRUE
+        }
+
+        tibble::tibble(
+          data_hora = as.character(Sys.time()),
+          import_id = import_id,
+          empresa = as.character(input$pdf_empresa),
+          competencia = as.character(competencia),
+          arquivo_zip = as.character(input$pdf_zip$name),
+          nome_zip = as.character(pdfs_zip$nome_zip[i]),
+          cliente_origem = as.character(cliente_origem),
+          cliente_destino = as.character(cliente_destino),
+          arquivo = as.character(item_zip$arquivo),
+          alias_aplicado = as.character(alias_aplicado),
+          status = "planejado",
+          detalhe = ""
+        )
+      })
+
+      clientes_origem <- unique(plano_importacao$cliente_origem)
+      clientes_destino <- unique(plano_importacao$cliente_destino)
+
+      if (length(clientes_origem) >= 3 && length(clientes_destino) == 1) {
+        plano_importacao$status <- "bloqueado"
+        plano_importacao$detalhe <- paste(
+          "Importacao suspeita:",
+          length(clientes_origem),
+          "clientes de origem direcionados para um unico destino:",
+          clientes_destino[1]
+        )
+        registrar_log_importacao_pdfs(plano_importacao)
+
+        stop(
+          paste0(
+            "Importacao bloqueada: ",
+            length(clientes_origem),
+            " pastas/clientes do ZIP seriam importados para um unico cliente (",
+            clientes_destino[1],
+            "). Verifique aliases e estrutura do ZIP. Detalhes em logs/pdf_importacao.csv."
+          )
+        )
+      }
+
+      registrar_log_importacao_pdfs(plano_importacao)
+
       tmp <- tempfile("pdfs-")
       dir_create(tmp)
       utils::unzip(input$pdf_zip$datapath, exdir = tmp)
@@ -1116,13 +1192,8 @@ server <- function(input, output, session) {
 
       for (i in seq_len(nrow(pdfs_zip))) {
         item_zip <- pdfs_validos[[i]]
-        cliente <- item_zip$cliente
+        cliente <- plano_importacao$cliente_destino[i]
         arquivo <- item_zip$arquivo
-        cliente_alias <- resolver_pdf_alias(input$pdf_empresa, cliente)
-
-        if (!is.na(cliente_alias) && trimws(cliente_alias) != "") {
-          cliente <- cliente_alias
-        }
 
         origem <- do.call(file.path, as.list(c(tmp, item_zip$partes)))
 
@@ -1147,6 +1218,10 @@ server <- function(input, output, session) {
         total <- total + 1
       }
 
+      plano_importacao$status <- "importado"
+      plano_importacao$detalhe <- paste("Destino final:", plano_importacao$cliente_destino)
+      registrar_log_importacao_pdfs(plano_importacao)
+
       atualizar_pdfs()
 
       pdf_msg(
@@ -1155,7 +1230,12 @@ server <- function(input, output, session) {
           " PDF(s) importado(s) do ZIP para ",
           input$pdf_empresa,
           "/clientes/",
-          competencia
+          competencia,
+          ". Origem: ",
+          length(clientes_origem),
+          " cliente(s)/pasta(s); destino: ",
+          length(clientes_destino),
+          " cliente(s). Log: logs/pdf_importacao.csv"
         )
       )
     },
