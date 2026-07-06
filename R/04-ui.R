@@ -565,6 +565,29 @@ ui_app <- fluidPage(
               class = "btn-primary"
             ),
 
+            br(),
+            br(),
+
+            numericInput(
+              "pdf_score_sugestao",
+              "Similaridade minima (%)",
+              value = 88,
+              min = 70,
+              max = 100,
+              step = 1
+            ),
+
+            checkboxInput(
+              "pdf_confirmar_sugestoes",
+              "Confirmo aplicar sugestoes",
+              value = FALSE
+            ),
+
+            actionButton(
+              "aplicar_sugestoes_pdf",
+              "Aplicar Sugestoes"
+            ),
+
             hr(),
 
             numericInput(
@@ -604,7 +627,11 @@ ui_app <- fluidPage(
 
             h3("Pastas sem cliente associado"),
 
-            DTOutput("pdf_pendencias_tabela")
+            DTOutput("pdf_pendencias_tabela"),
+
+            h3("Sugestoes de Associacao"),
+
+            DTOutput("pdf_sugestoes_tabela")
           )
         )
       )

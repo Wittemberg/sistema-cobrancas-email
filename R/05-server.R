@@ -857,6 +857,99 @@ server <- function(input, output, session) {
     )
   })
 
+  sugerir_cliente_pdf <- function(pasta_nome, clientes) {
+    clientes <- clientes[!is.na(clientes) & clientes != ""]
+
+    if (length(clientes) == 0) {
+      return(
+        list(
+          cliente = "",
+          score = 0
+        )
+      )
+    }
+
+    pasta_norm <- normalizar_nome(pasta_nome)
+    clientes_norm <- normalizar_nome(clientes)
+
+    distancias <- stringdist::stringdist(
+      pasta_norm,
+      clientes_norm,
+      method = "jw",
+      p = 0.1
+    )
+
+    idx <- which.min(distancias)
+    score <- round((1 - distancias[idx]) * 100, 1)
+
+    list(
+      cliente = clientes[idx],
+      score = score
+    )
+  }
+
+  pdf_sugestoes <- reactive({
+    pendencias <- pdf_pendencias()
+
+    if (nrow(pendencias) == 0) {
+      return(
+        tibble::tibble(
+          Pasta = character(),
+          PDFs = integer(),
+          Cliente_Sugerido = character(),
+          Similaridade = numeric(),
+          Acao = character()
+        )
+      )
+    }
+
+    clientes <- ler_clientes_empresa(input$pdf_empresa)
+
+    if (nrow(clientes) == 0 || !"cliente_nome" %in% names(clientes)) {
+      return(
+        tibble::tibble(
+          Pasta = pendencias$Cliente,
+          PDFs = pendencias$PDFs,
+          Cliente_Sugerido = "",
+          Similaridade = 0,
+          Acao = "Sem cadastro de clientes"
+        )
+      )
+    }
+
+    nomes_clientes <- as.character(clientes$cliente_nome)
+    sugestoes <- purrr::map(pendencias$Cliente, sugerir_cliente_pdf, clientes = nomes_clientes)
+    scores <- purrr::map_dbl(sugestoes, "score")
+    limite <- suppressWarnings(as.numeric(input$pdf_score_sugestao))
+
+    if (is.na(limite)) {
+      limite <- 88
+    }
+
+    tibble::tibble(
+      Pasta = as.character(pendencias$Cliente),
+      PDFs = as.integer(pendencias$PDFs),
+      Cliente_Sugerido = purrr::map_chr(sugestoes, "cliente"),
+      Similaridade = scores,
+      Acao = ifelse(scores >= limite, "Pode aplicar", "Revisar manualmente")
+    ) |>
+      dplyr::arrange(dplyr::desc(.data$Similaridade), .data$Pasta)
+  })
+
+  output$pdf_sugestoes_tabela <- DT::renderDT({
+    datatable_padrao(
+      pdf_sugestoes(),
+      page_length = 10,
+      colnames = c(
+        "Pasta",
+        "PDFs",
+        "Cliente Sugerido",
+        "Similaridade %",
+        "Acao"
+      )
+    )
+  })
+
   output$ui_pdf_pasta_sem_cliente <- renderUI({
     pendencias <- pdf_pendencias()
     escolhas <- sort(as.character(pendencias$Cliente))
@@ -982,6 +1075,78 @@ server <- function(input, output, session) {
       pdf_msg(paste("Associacao salva e item adicionado a fila:", input$pdf_cliente_alias))
     }, error = function(e) {
       pdf_msg(paste("Erro ao adicionar a fila:", conditionMessage(e)))
+    })
+  })
+
+  observeEvent(input$aplicar_sugestoes_pdf, {
+    req(input$pdf_empresa)
+    req(input$pdf_competencia)
+
+    if (!isTRUE(input$pdf_confirmar_sugestoes)) {
+      pdf_msg("Marque a confirmacao antes de aplicar sugestoes.")
+      return()
+    }
+
+    tryCatch({
+      sugestoes <- pdf_sugestoes()
+      limite <- suppressWarnings(as.numeric(input$pdf_score_sugestao))
+
+      if (is.na(limite)) {
+        limite <- 88
+      }
+
+      aplicar <- sugestoes |>
+        dplyr::filter(
+          .data$Similaridade >= limite,
+          .data$Cliente_Sugerido != ""
+        )
+
+      if (nrow(aplicar) == 0) {
+        pdf_msg("Nenhuma sugestao atingiu a similaridade minima.")
+        return()
+      }
+
+      resultado <- character(0)
+
+      for (i in seq_len(nrow(aplicar))) {
+        item <- aplicar[i, ]
+
+        salvar_pdf_alias(
+          empresa = input$pdf_empresa,
+          pasta_pdf = item$Pasta,
+          cliente_nome = item$Cliente_Sugerido
+        )
+
+        associacao <- aplicar_associacao_pasta_pdf(
+          empresa = input$pdf_empresa,
+          competencia = input$pdf_competencia,
+          pasta_pdf = item$Pasta,
+          cliente_nome = item$Cliente_Sugerido
+        )
+
+        resultado <- c(
+          resultado,
+          paste0(
+            item$Pasta,
+            " -> ",
+            item$Cliente_Sugerido,
+            " (",
+            item$Similaridade,
+            "%, PDFs: ",
+            associacao$total_pdfs,
+            ")"
+          )
+        )
+      }
+
+      atualizar_pdfs()
+      updateCheckboxInput(session, "pdf_confirmar_sugestoes", value = FALSE)
+      pdf_msg(paste(c(
+        paste("Sugestoes aplicadas:", nrow(aplicar)),
+        resultado
+      ), collapse = "\n"))
+    }, error = function(e) {
+      pdf_msg(paste("Erro ao aplicar sugestoes:", conditionMessage(e)))
     })
   })
 

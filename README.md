@@ -183,6 +183,8 @@ Ao gerar fila ou disparo, a pasta do cliente precisa corresponder ao nome do cad
 
 Pastas que sobrarem sem associacao aparecem na aba PDFs em `Pastas sem cliente associado`. O operador pode associar manualmente a pasta ao cliente correto e, se desejar, adicionar o item diretamente a fila. Essa associacao tambem move/mescla os PDFs para a pasta canonica do cliente na competencia atual. O vinculo fica gravado em `_config/pdf_aliases.csv` e passa a ser reutilizado nas proximas importacoes quando a pasta tiver o mesmo padrao de nome.
 
+A aba PDFs tambem mostra sugestoes de associacao por similaridade. As sugestoes nao sao aplicadas automaticamente durante o envio; o operador define a similaridade minima, confirma e aplica em lote quando julgar seguro.
+
 A importacao ZIP registra o plano e o resultado em `logs/pdf_importacao.csv`. Se muitos clientes/pastas de origem forem direcionados para um unico cliente de destino, a importacao e bloqueada para evitar concentrar PDFs indevidamente em uma unica pasta.
 
 Ao remover competencias antigas, o sistema cria backup ZIP individual em:
