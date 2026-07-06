@@ -621,6 +621,56 @@ server <- function(input, output, session) {
     )
   }
 
+  aplicar_associacao_pasta_pdf <- function(empresa, competencia, pasta_pdf, cliente_nome) {
+    pasta_competencia <- caminho_competencia_pdf(empresa, competencia)
+    origem <- file.path(pasta_competencia, pasta_pdf)
+    destino <- caminho_cliente_pdf(empresa, competencia, cliente_nome)
+
+    if (!dir_exists(origem)) {
+      stop("Pasta de origem nao encontrada.")
+    }
+
+    origem_norm <- normalizePath(origem, winslash = "/", mustWork = TRUE)
+    destino_norm <- normalizePath(dirname(destino), winslash = "/", mustWork = TRUE)
+    base_norm <- normalizePath(pasta_competencia, winslash = "/", mustWork = TRUE)
+
+    if (!startsWith(origem_norm, paste0(base_norm, "/"))) {
+      stop("Pasta de origem invalida.")
+    }
+
+    if (!startsWith(destino_norm, base_norm)) {
+      stop("Pasta de destino invalida.")
+    }
+
+    arquivos_pdf <- dir_ls(
+      origem,
+      regexp = "\\.pdf$",
+      recurse = FALSE
+    )
+
+    if (length(arquivos_pdf) == 0) {
+      stop("Pasta selecionada nao possui PDFs.")
+    }
+
+    dir_create(destino, recurse = TRUE)
+    destino_final_norm <- normalizePath(destino, winslash = "/", mustWork = TRUE)
+
+    if (!identical(origem_norm, destino_final_norm)) {
+      file_copy(
+        arquivos_pdf,
+        file.path(destino, basename(arquivos_pdf)),
+        overwrite = TRUE
+      )
+
+      dir_delete(origem)
+    }
+
+    list(
+      pasta_pdf = basename(destino),
+      total_pdfs = length(dir_ls(destino, regexp = "\\.pdf$", recurse = FALSE))
+    )
+  }
+
   validar_pasta_competencia_para_remocao <- function(empresa, competencia) {
     pasta_clientes <- normalizePath(
       file.path(pasta_raiz, empresa, "clientes"),
@@ -836,6 +886,7 @@ server <- function(input, output, session) {
 
   salvar_associacao_pdf_selecionada <- function() {
     req(input$pdf_empresa)
+    req(input$pdf_competencia)
     req(input$pdf_pasta_alias)
     req(input$pdf_cliente_alias)
 
@@ -845,13 +896,28 @@ server <- function(input, output, session) {
       cliente_nome = input$pdf_cliente_alias
     )
 
+    resultado <- aplicar_associacao_pasta_pdf(
+      empresa = input$pdf_empresa,
+      competencia = input$pdf_competencia,
+      pasta_pdf = input$pdf_pasta_alias,
+      cliente_nome = input$pdf_cliente_alias
+    )
+
     atualizar_pdfs()
+    resultado
   }
 
   observeEvent(input$associar_pasta_pdf, {
     tryCatch({
-      salvar_associacao_pdf_selecionada()
-      pdf_msg(paste("Associacao salva:", input$pdf_pasta_alias, "->", input$pdf_cliente_alias))
+      resultado <- salvar_associacao_pdf_selecionada()
+      pdf_msg(paste(
+        "Associacao salva:",
+        input$pdf_pasta_alias,
+        "->",
+        input$pdf_cliente_alias,
+        "| PDFs:",
+        resultado$total_pdfs
+      ))
     }, error = function(e) {
       pdf_msg(paste("Erro ao salvar associacao:", conditionMessage(e)))
     })
@@ -859,7 +925,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$associar_pasta_pdf_fila, {
     tryCatch({
-      salvar_associacao_pdf_selecionada()
+      associacao <- salvar_associacao_pdf_selecionada()
 
       cliente <- ler_clientes_empresa(input$pdf_empresa) |>
         dplyr::filter(.data$cliente_nome == input$pdf_cliente_alias) |>
@@ -873,7 +939,7 @@ server <- function(input, output, session) {
         empresa = input$pdf_empresa,
         competencia = input$pdf_competencia,
         cliente_nome = input$pdf_cliente_alias,
-        pasta_pdf = input$pdf_pasta_alias
+        pasta_pdf = associacao$pasta_pdf
       )
 
       if (verificacao$total_pdfs <= 0) {
@@ -897,7 +963,7 @@ server <- function(input, output, session) {
         cliente_nome = as.character(input$pdf_cliente_alias),
         email_principal = as.character(cliente$email_principal[1]),
         total_pdfs = as.integer(verificacao$total_pdfs),
-        pasta_pdf = as.character(input$pdf_pasta_alias),
+        pasta_pdf = as.character(associacao$pasta_pdf),
         status = "pendente",
         data_inclusao = as.character(Sys.time())
       )
@@ -1052,6 +1118,11 @@ server <- function(input, output, session) {
         item_zip <- pdfs_validos[[i]]
         cliente <- item_zip$cliente
         arquivo <- item_zip$arquivo
+        cliente_alias <- resolver_pdf_alias(input$pdf_empresa, cliente)
+
+        if (!is.na(cliente_alias) && trimws(cliente_alias) != "") {
+          cliente <- cliente_alias
+        }
 
         origem <- do.call(file.path, as.list(c(tmp, item_zip$partes)))
 
@@ -2205,13 +2276,19 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
     tryCatch({
 
       telefone <- normalizar_telefone_br(input$cw_teste_telefone)
+      telefone_chatwoot <- paste0("+55", telefone)
+      contact_identifier_esperado <- chatwoot_contact_identifier(
+        input$cw_empresa_id,
+        telefone_chatwoot
+      )
+      base_url <- sub("/+$", "", input$cw_base_url)
 
       if (nchar(telefone) < 10) {
         stop("Telefone inválido. Informe DDD + número.")
       }
 
       contato_url <- paste0(
-        input$cw_base_url,
+        base_url,
         "/public/api/v1/inboxes/",
         input$cw_inbox_identifier,
         "/contacts"
@@ -2224,22 +2301,23 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         ) |>
         httr2::req_body_json(
           list(
+            identifier = contact_identifier_esperado,
             name = input$cw_teste_nome,
-            phone_number = paste0("+55", telefone)
+            phone_number = telefone_chatwoot
           )
         ) |>
-        httr2::req_perform()
+        chatwoot_perform("teste_contato")
 
       contato_json <- httr2::resp_body_json(contato_resp)
 
       contact_identifier <- contato_json$source_id
 
       if (is.null(contact_identifier) || contact_identifier == "") {
-        contact_identifier <- contato_json$id
+        contact_identifier <- contact_identifier_esperado
       }
 
       conversa_url <- paste0(
-        input$cw_base_url,
+        base_url,
         "/public/api/v1/inboxes/",
         input$cw_inbox_identifier,
         "/contacts/",
@@ -2257,14 +2335,14 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
             custom_attributes = list()
           )
         ) |>
-        httr2::req_perform()
+        chatwoot_perform("teste_conversa")
 
       conversa_json <- httr2::resp_body_json(conversa_resp)
 
       conversation_id <- conversa_json$id
 
       mensagem_url <- paste0(
-        input$cw_base_url,
+        base_url,
         "/public/api/v1/inboxes/",
         input$cw_inbox_identifier,
         "/contacts/",
@@ -2284,7 +2362,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
             content = input$cw_teste_msg
           )
         ) |>
-        httr2::req_perform()
+        chatwoot_perform("teste_mensagem")
 
       registrar_log_whatsapp(
         empresa = input$cw_empresa_id,

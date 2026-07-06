@@ -115,6 +115,24 @@ chatwoot_timeout_segundos <- function() {
   timeout
 }
 
+chatwoot_perform <- function(req, etapa) {
+  tryCatch(
+    httr2::req_perform(req),
+    error = function(e) {
+      stop(
+        paste0("Chatwoot ", etapa, ": ", conditionMessage(e)),
+        call. = FALSE
+      )
+    }
+  )
+}
+
+chatwoot_contact_identifier <- function(empresa, telefone_normalizado) {
+  telefone_limpo <- gsub("[^0-9]", "", as.character(telefone_normalizado))
+  empresa_limpa <- gsub(" ", "_", normalizar_nome(empresa))
+  paste0("wrtec_", empresa_limpa, "_", telefone_limpo)
+}
+
 substituir_variaveis_whatsapp <- function(
     texto,
     empresa,
@@ -277,6 +295,10 @@ enviar_whatsapp_cliente <- function(
     }
 
     telefone_normalizado <- normalizar_telefone_whatsapp(telefone)
+    contact_identifier_esperado <- chatwoot_contact_identifier(
+      empresa,
+      telefone_normalizado
+    )
     base_url <- sub("/+$", "", as.character(config$base_url))
 
     contato_url <- paste0(
@@ -293,18 +315,23 @@ enviar_whatsapp_cliente <- function(
       ) |>
       httr2::req_body_json(
         list(
+          identifier = contact_identifier_esperado,
           name = cliente_nome,
-          phone_number = telefone_normalizado
+          phone_number = telefone_normalizado,
+          custom_attributes = list(
+            empresa_id = as.character(empresa),
+            cliente_nome = cliente_nome
+          )
         )
       ) |>
       httr2::req_timeout(timeout) |>
-      httr2::req_perform()
+      chatwoot_perform("contato")
 
     contato_json <- httr2::resp_body_json(contato_resp)
     contact_identifier <- contato_json$source_id
 
     if (is.null(contact_identifier) || contact_identifier == "") {
-      contact_identifier <- contato_json$id
+      contact_identifier <- contact_identifier_esperado
     }
 
     conversa_url <- paste0(
@@ -331,7 +358,7 @@ enviar_whatsapp_cliente <- function(
         )
       ) |>
       httr2::req_timeout(timeout) |>
-      httr2::req_perform()
+      chatwoot_perform("conversa")
 
     conversa_json <- httr2::resp_body_json(conversa_resp)
     conversation_id <- conversa_json$id
@@ -358,7 +385,7 @@ enviar_whatsapp_cliente <- function(
         )
       ) |>
       httr2::req_timeout(timeout) |>
-      httr2::req_perform()
+      chatwoot_perform("mensagem")
 
     if (length(arquivos_pdf) > 0) {
       for (arquivo_pdf in arquivos_pdf) {
@@ -372,7 +399,7 @@ enviar_whatsapp_cliente <- function(
             `attachments[]` = curl::form_file(arquivo_pdf)
           ) |>
           httr2::req_timeout(timeout) |>
-          httr2::req_perform()
+          chatwoot_perform("anexo")
       }
     }
 

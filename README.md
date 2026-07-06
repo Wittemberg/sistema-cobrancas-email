@@ -181,7 +181,7 @@ empresa/clientes/competencia/cliente/
 
 Ao gerar fila ou disparo, a pasta do cliente precisa corresponder ao nome do cadastro apos normalizacao de acentos, pontuacao e espacos. Tambem sao aceitas pastas que comecem pelo nome do cliente e tenham um sufixo, como `CLIENTE-907...-Inter_Empresas`. O sistema nao associa mais um cliente a uma pasta apenas por semelhanca, para evitar envios indevidos quando o ZIP contem menos clientes do que a base cadastrada.
 
-Pastas que sobrarem sem associacao aparecem na aba PDFs em `Pastas sem cliente associado`. O operador pode associar manualmente a pasta ao cliente correto e, se desejar, adicionar o item diretamente a fila. Essa associacao fica gravada em `_config/pdf_aliases.csv` e passa a ser reutilizada nas proximas competencias/importacoes quando a pasta tiver o mesmo padrao de nome.
+Pastas que sobrarem sem associacao aparecem na aba PDFs em `Pastas sem cliente associado`. O operador pode associar manualmente a pasta ao cliente correto e, se desejar, adicionar o item diretamente a fila. Essa associacao tambem move/mescla os PDFs para a pasta canonica do cliente na competencia atual. O vinculo fica gravado em `_config/pdf_aliases.csv` e passa a ser reutilizado nas proximas importacoes quando a pasta tiver o mesmo padrao de nome.
 
 Ao remover competencias antigas, o sistema cria backup ZIP individual em:
 
