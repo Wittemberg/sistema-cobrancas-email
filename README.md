@@ -318,6 +318,8 @@ Metodos de envio:
 
 - `public_api`: metodo original, usa `/public/api/v1/inboxes/{inbox_identifier}`.
 - `account_api`: usa `/api/v1/accounts/{account_id}` e envia como `message_type = outgoing`; exige `account_id` e `inbox_id` numerico.
+- o log de WhatsApp registra o detalhe tecnico retornado pelo Chatwoot (`message_id`, `conversation_id`, `status`, `source_id` e `inbox_id`, quando disponiveis).
+- a Public API pode criar a mensagem no Chatwoot sem garantir sincronizacao no celular; valide a entrega pelo status/detalhe do canal usado pelo conector.
 
 Recursos:
 

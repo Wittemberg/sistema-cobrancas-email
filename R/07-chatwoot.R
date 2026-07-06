@@ -14,7 +14,8 @@ registrar_log_whatsapp <- function(
     status,
     erro = "",
     origem = "",
-    competencia = ""
+    competencia = "",
+    detalhe = ""
 ) {
   caminho <- caminho_log_whatsapp()
   dir.create(dirname(caminho), recursive = TRUE, showWarnings = FALSE)
@@ -28,7 +29,8 @@ registrar_log_whatsapp <- function(
     status = as.character(status),
     erro = as.character(erro),
     origem = as.character(origem),
-    competencia = as.character(competencia)
+    competencia = as.character(competencia),
+    detalhe = as.character(detalhe)
   )
 
   if (file.exists(caminho)) {
@@ -125,6 +127,40 @@ chatwoot_perform <- function(req, etapa) {
       )
     }
   )
+}
+
+chatwoot_resumo_resposta <- function(resp, metodo, conversation_id = "") {
+  status_code <- tryCatch(httr2::resp_status(resp), error = function(e) NA_integer_)
+  corpo <- tryCatch(httr2::resp_body_json(resp), error = function(e) NULL)
+
+  partes <- c(
+    paste0("metodo=", metodo),
+    paste0("http_status=", status_code)
+  )
+
+  if (!is.null(corpo)) {
+    if (!is.null(corpo$id)) {
+      partes <- c(partes, paste0("message_id=", as.character(corpo$id)))
+    }
+    if (!is.null(corpo$conversation_id)) {
+      partes <- c(partes, paste0("conversation_id=", as.character(corpo$conversation_id)))
+    }
+    if (!is.null(corpo$status)) {
+      partes <- c(partes, paste0("message_status=", as.character(corpo$status)))
+    }
+    if (!is.null(corpo$source_id)) {
+      partes <- c(partes, paste0("source_id=", as.character(corpo$source_id)))
+    }
+    if (!is.null(corpo$inbox_id)) {
+      partes <- c(partes, paste0("inbox_id=", as.character(corpo$inbox_id)))
+    }
+  }
+
+  if (as.character(conversation_id) != "") {
+    partes <- c(partes, paste0("conversation_id_usado=", as.character(conversation_id)))
+  }
+
+  paste(partes, collapse = " | ")
 }
 
 chatwoot_contact_identifier <- function(empresa, telefone_normalizado) {
@@ -613,7 +649,7 @@ enviar_whatsapp_cliente <- function(
         "/messages"
       )
 
-      httr2::request(mensagem_url) |>
+      mensagem_resp <- httr2::request(mensagem_url) |>
         httr2::req_headers(
           "Content-Type" = "application/json",
           "api_access_token" = token
@@ -629,6 +665,12 @@ enviar_whatsapp_cliente <- function(
         ) |>
         httr2::req_timeout(timeout) |>
         chatwoot_perform("account_mensagem")
+
+      detalhe_envio <- chatwoot_resumo_resposta(
+        mensagem_resp,
+        metodo = "account_api",
+        conversation_id = conversation_id
+      )
 
       if (length(arquivos_pdf) > 0) {
         for (arquivo_pdf in arquivos_pdf) {
@@ -660,7 +702,8 @@ enviar_whatsapp_cliente <- function(
         mensagem = mensagem_log,
         status = "enviado",
         origem = paste0(origem, "_account_api"),
-        competencia = competencia
+        competencia = competencia,
+        detalhe = detalhe_envio
       )
 
       return(TRUE)
@@ -739,7 +782,7 @@ enviar_whatsapp_cliente <- function(
       "/messages"
     )
 
-    httr2::request(mensagem_url) |>
+    mensagem_resp <- httr2::request(mensagem_url) |>
       httr2::req_headers(
         "Content-Type" = "application/json",
         "api_access_token" = as.character(config$api_access_token)
@@ -751,6 +794,12 @@ enviar_whatsapp_cliente <- function(
       ) |>
       httr2::req_timeout(timeout) |>
       chatwoot_perform("mensagem")
+
+    detalhe_envio <- chatwoot_resumo_resposta(
+      mensagem_resp,
+      metodo = "public_api",
+      conversation_id = conversation_id
+    )
 
     if (length(arquivos_pdf) > 0) {
       for (arquivo_pdf in arquivos_pdf) {
@@ -781,7 +830,8 @@ enviar_whatsapp_cliente <- function(
       mensagem = mensagem_log,
       status = "enviado",
       origem = origem,
-      competencia = competencia
+      competencia = competencia,
+      detalhe = detalhe_envio
     )
 
     TRUE

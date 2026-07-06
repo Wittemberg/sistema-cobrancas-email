@@ -282,6 +282,7 @@ Recursos:
 - configuracao por empresa
 - metodo de envio parametrizavel: `public_api` ou `account_api`
 - `public_api` usa o endpoint publico do inbox; `account_api` usa Account API com `message_type = outgoing` e exige `account_id` + `inbox_id`
+- logs de WhatsApp gravam `detalhe` com retorno tecnico do Chatwoot para diagnosticar se a mensagem foi criada, roteada ou falhou no canal
 - teste de envio
 - envio manual por cliente
 - envio automatico apos tentativa de e-mail

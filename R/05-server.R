@@ -2604,7 +2604,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           "/messages"
         )
 
-        httr2::request(mensagem_url) |>
+        mensagem_resp <- httr2::request(mensagem_url) |>
           httr2::req_headers(
             "Content-Type" = "application/json",
             "api_access_token" = input$cw_token
@@ -2621,16 +2621,23 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           httr2::req_timeout(chatwoot_timeout_segundos()) |>
           chatwoot_perform("teste_account_mensagem")
 
+        detalhe_envio <- chatwoot_resumo_resposta(
+          mensagem_resp,
+          metodo = "account_api",
+          conversation_id = conversation_id
+        )
+
         registrar_log_whatsapp(
           empresa = input$cw_empresa_id,
           cliente_nome = input$cw_teste_nome,
           telefone = input$cw_teste_telefone,
           mensagem = input$cw_teste_msg,
           status = "enviado",
-          origem = "teste_chatwoot_account_api"
+          origem = "teste_chatwoot_account_api",
+          detalhe = detalhe_envio
         )
 
-        cw_msg("Mensagem de teste enviada pelo Chatwoot via Account API.")
+        cw_msg(paste("Mensagem de teste enviada pelo Chatwoot via Account API.", detalhe_envio))
         return()
       }
 
@@ -2699,7 +2706,7 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         "/messages"
       )
 
-      httr2::request(mensagem_url) |>
+      mensagem_resp <- httr2::request(mensagem_url) |>
         httr2::req_headers(
           "Content-Type" = "application/json",
           "api_access_token" = input$cw_token
@@ -2711,16 +2718,23 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         ) |>
         chatwoot_perform("teste_mensagem")
 
+      detalhe_envio <- chatwoot_resumo_resposta(
+        mensagem_resp,
+        metodo = "public_api",
+        conversation_id = conversation_id
+      )
+
       registrar_log_whatsapp(
         empresa = input$cw_empresa_id,
         cliente_nome = input$cw_teste_nome,
         telefone = input$cw_teste_telefone,
         mensagem = input$cw_teste_msg,
         status = "enviado",
-        origem = "teste_chatwoot"
+        origem = "teste_chatwoot",
+        detalhe = detalhe_envio
       )
 
-      cw_msg("Mensagem de teste enviada pelo Chatwoot.")
+      cw_msg(paste("Mensagem de teste enviada pelo Chatwoot.", detalhe_envio))
     },
     error = function(e) {
       registrar_log_whatsapp(
@@ -3098,7 +3112,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
           status = character(),
           erro = character(),
           origem = character(),
-          competencia = character()
+          competencia = character(),
+          detalhe = character()
         )
       )
     }
@@ -3303,7 +3318,8 @@ Se você recebeu esta mensagem, a configuração SMTP está funcionando corretam
         "Status",
         "Erro",
         "Origem",
-        "Competência"
+        "Competência",
+        "Detalhe"
       )
     )
   })
