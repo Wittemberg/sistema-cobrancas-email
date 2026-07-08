@@ -26,6 +26,7 @@ O sistema atual e **multiempresa em uma unica instalacao**: uma mesma aplicacao 
 |-- run-app.R
 |-- Dockerfile
 |-- docker-stack.portainer.yml
+|-- docker-compose-tecnoteam.yml
 |-- R/
 |   |-- 01-config.R
 |   |-- 02-dados.R
@@ -74,6 +75,16 @@ empresa/
 ```
 
 As telas que usam o campo `Empresa` listam as pastas que contem `modelos/` ou `destinatarios.csv`.
+
+Para limitar as empresas visiveis em um deploy especifico, use `APP_EMPRESAS_HABILITADAS`.
+A lista aceita valores separados por virgula, ponto e virgula ou espaco.
+
+Exemplo:
+
+```yaml
+environment:
+  APP_EMPRESAS_HABILITADAS: tecnoteam
+```
 
 ## Configuracoes Globais
 

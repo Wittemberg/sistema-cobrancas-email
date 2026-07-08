@@ -6,6 +6,7 @@ Este documento descreve o deploy atual da aplicacao no Portainer/Traefik.
 
 - `Dockerfile`
 - `docker-stack.portainer.yml`
+- `docker-compose-tecnoteam.yml`
 - `.github/workflows/docker-portainer.yml`
 
 ## Imagem Docker
@@ -104,12 +105,20 @@ Obrigatorias/recomendadas:
 
 ```text
 TZ=America/Sao_Paulo
+APP_EMPRESAS_HABILITADAS=awe,tecnoteam,wr-tecnologia
 APP_ADMIN_USER=admin
 APP_ADMIN_PASSWORD=<senha_inicial>
 CHATWOOT_TIMEOUT_SECONDS=60
 ```
 
 `APP_ADMIN_PASSWORD` e obrigatoria no primeiro deploy quando `_config/usuarios.csv` ainda nao existe.
+
+Use `APP_EMPRESAS_HABILITADAS` para limitar quais pastas de empresa aparecem no sistema.
+No deploy Tecnoteam, use:
+
+```text
+APP_EMPRESAS_HABILITADAS=tecnoteam
+```
 
 ## Volumes Persistentes
 

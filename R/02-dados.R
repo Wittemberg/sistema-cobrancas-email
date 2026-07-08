@@ -188,6 +188,12 @@ carregar_dados_empresa_config <- function(empresa) {
 
 listar_empresas <- function() {
 
+  empresas_habilitadas <- Sys.getenv("APP_EMPRESAS_HABILITADAS", unset = "")
+  empresas_habilitadas <- str_split(empresas_habilitadas, "[,;\\s]+", simplify = FALSE)[[1]]
+  empresas_habilitadas <- empresas_habilitadas |>
+    str_trim() |>
+    discard(~ .x == "")
+
   dirs <- dir_ls(
     pasta_raiz,
     type = "directory",
@@ -203,6 +209,7 @@ listar_empresas <- function() {
   dirs_validos |>
     basename() |>
     discard(~ str_detect(.x, "^[0-9]+_")) |>
+    keep(~ length(empresas_habilitadas) == 0 || .x %in% empresas_habilitadas) |>
     sort()
 }
 

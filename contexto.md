@@ -370,6 +370,9 @@ Stack:
 
 ```text
 docker-stack.portainer.yml
+
+`APP_EMPRESAS_HABILITADAS` limita quais empresas aparecem nas telas e no dashboard.
+Exemplo Tecnoteam: `APP_EMPRESAS_HABILITADAS=tecnoteam`.
 ```
 
 Workflow:
